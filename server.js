@@ -20,6 +20,7 @@ const PORT = process.env.PORT || 3000;
 const DATA_DIR = path.join(__dirname, 'data');
 const UPLOADS_DIR = path.join(__dirname, 'public', 'uploads');
 const DB_FILE = path.join(DATA_DIR, 'db.json');
+const SQLITE_FILE = path.join(DATA_DIR, 'database.sqlite');
 
 // Ensure directories exist
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -54,79 +55,270 @@ function safeUser(u, isOnline = false) {
   return {
     ...rest,
     status: isOnline ? 'online' : (u.status || 'offline'),
-    friends: u.friends || [],
-    friendRequestsReceived: u.friendRequestsReceived || [],
-    friendRequestsSent: u.friendRequestsSent || []
+    friends: Array.isArray(u.friends) ? u.friends : (typeof u.friends === 'string' ? JSON.parse(u.friends || '[]') : []),
+    friendRequestsReceived: [],
+    friendRequestsSent: []
   };
 }
 
-// Initial seed data: NO FAKE ACCOUNTS, NO DEFAULT FAKE GROUPS
-const initialData = {
-  users: [],
-  rooms: [],
-  messages: []
-};
+// ===================================================================
+// SQLITE DATABASE INITIALIZATION (BUILT-IN node:sqlite)
+// ===================================================================
+let sqliteDb = null;
+try {
+  const { DatabaseSync } = require('node:sqlite');
+  sqliteDb = new DatabaseSync(SQLITE_FILE);
+  sqliteDb.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      tag TEXT,
+      username TEXT UNIQUE NOT NULL,
+      phone TEXT UNIQUE NOT NULL,
+      password TEXT NOT NULL,
+      avatar TEXT,
+      bio TEXT,
+      friends TEXT DEFAULT '[]',
+      status TEXT DEFAULT 'offline',
+      last_seen TEXT
+    );
 
-// Database helper
-function normalizeDB(data) {
-  if (!data.users) data.users = [];
-  if (!data.rooms) data.rooms = [];
-  if (!data.messages) data.messages = [];
+    CREATE TABLE IF NOT EXISTS rooms (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      creator_id TEXT,
+      creator_name TEXT,
+      avatar TEXT,
+      description TEXT,
+      members TEXT DEFAULT '[]',
+      created_at INTEGER
+    );
 
-  // Remove any remaining fake users if present
-  const fakeIds = ['user_quan', 'user_linh', 'user_tuan', 'user_ngoc'];
-  data.users = data.users.filter(u => !fakeIds.includes(u.id));
+    CREATE TABLE IF NOT EXISTS messages (
+      id TEXT PRIMARY KEY,
+      sender_id TEXT NOT NULL,
+      sender_name TEXT,
+      sender_avatar TEXT,
+      target_id TEXT NOT NULL,
+      is_group INTEGER DEFAULT 0,
+      text TEXT,
+      image_url TEXT,
+      file_url TEXT,
+      file_name TEXT,
+      reply_to TEXT,
+      reactions TEXT DEFAULT '{}',
+      is_pinned INTEGER DEFAULT 0,
+      recalled INTEGER DEFAULT 0,
+      timestamp INTEGER NOT NULL
+    );
+  `);
 
-  // Remove fake room
-  data.rooms = data.rooms.filter(r => r.id !== 'room_general');
+  // Remove any fake accounts if present in SQL
+  sqliteDb.exec(`DELETE FROM users WHERE id IN ('user_quan', 'user_linh', 'user_tuan', 'user_ngoc')`);
+  sqliteDb.exec(`DELETE FROM rooms WHERE id = 'room_general'`);
 
-  // Normalize each real user
-  data.users.forEach(u => {
-    if (!u.username) {
-      u.username = (u.tag ? u.tag.replace('@', '') : u.id).toLowerCase();
-    }
-    if (!u.tag) u.tag = `@${u.username}`;
-    if (!Array.isArray(u.friends)) u.friends = [];
-    if (!Array.isArray(u.friendRequestsReceived)) u.friendRequestsReceived = [];
-    if (!Array.isArray(u.friendRequestsSent)) u.friendRequestsSent = [];
-
-    // Filter out fake IDs from friend lists
-    u.friends = u.friends.filter(fId => !fakeIds.includes(fId));
-    u.friendRequestsReceived = u.friendRequestsReceived.filter(fId => !fakeIds.includes(fId));
-    u.friendRequestsSent = u.friendRequestsSent.filter(fId => !fakeIds.includes(fId));
-  });
-
-  // Filter out fake messages
-  data.messages = data.messages.filter(m => !fakeIds.includes(m.senderId) && m.targetId !== 'room_general');
-
-  return data;
+  console.log('✅ SQLite Database successfully connected and initialized at:', SQLITE_FILE);
+} catch (err) {
+  console.warn('⚠️ SQLite init warning:', err.message);
 }
 
-function loadDB() {
+// Memory & JSON cache sync helper
+function loadJSONDB() {
   try {
-    if (!fs.existsSync(DB_FILE)) {
-      const normalized = normalizeDB(JSON.parse(JSON.stringify(initialData)));
-      fs.writeFileSync(DB_FILE, JSON.stringify(normalized, null, 2), 'utf-8');
-      return normalized;
+    if (fs.existsSync(DB_FILE)) {
+      return JSON.parse(fs.readFileSync(DB_FILE, 'utf-8'));
     }
-    const data = JSON.parse(fs.readFileSync(DB_FILE, 'utf-8'));
-    return normalizeDB(data);
-  } catch (err) {
-    console.error('Error reading db:', err);
-    return normalizeDB(JSON.parse(JSON.stringify(initialData)));
-  }
+  } catch (e) {}
+  return { users: [], rooms: [], messages: [] };
 }
-
-function saveDB(data) {
+function saveJSONDB(data) {
   try {
     fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), 'utf-8');
-  } catch (err) {
-    console.error('Error writing db:', err);
-  }
+  } catch (e) {}
+}
+let jsonDb = loadJSONDB();
+
+// Sync JSON users into SQL if SQL is fresh
+if (sqliteDb && jsonDb.users && jsonDb.users.length > 0) {
+  jsonDb.users.forEach(u => {
+    try {
+      const existing = sqliteDb.prepare('SELECT id FROM users WHERE id = ?').get(u.id);
+      if (!existing && u.phone && u.username) {
+        sqliteDb.prepare(`
+          INSERT OR REPLACE INTO users (id, name, tag, username, phone, password, avatar, bio, friends, status, last_seen)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(
+          u.id, u.name, u.tag || `@${u.username}`, u.username, u.phone, u.password || '123',
+          u.avatar || '', u.bio || '', JSON.stringify(u.friends || []), 'offline', u.lastSeen || new Date().toISOString()
+        );
+      }
+    } catch (e) {}
+  });
 }
 
-// Memory cache of DB
-let db = loadDB();
+// Unified Database Helpers
+function dbGetAllUsers() {
+  if (sqliteDb) {
+    const rows = sqliteDb.prepare('SELECT * FROM users').all();
+    return rows.map(r => ({
+      ...r,
+      friends: JSON.parse(r.friends || '[]')
+    }));
+  }
+  return jsonDb.users || [];
+}
+
+function dbFindUserByAccount(account) {
+  const cleanUsername = account.trim().toLowerCase().replace(/[@\s]/g, '');
+  const rawPhone = account.trim().replace(/\s+/g, '');
+
+  if (sqliteDb) {
+    const row = sqliteDb.prepare('SELECT * FROM users WHERE phone = ? OR lower(username) = lower(?)').get(rawPhone, cleanUsername);
+    if (row) {
+      return {
+        ...row,
+        friends: JSON.parse(row.friends || '[]')
+      };
+    }
+    return null;
+  }
+  return jsonDb.users.find(u => u.phone === rawPhone || (u.username && u.username.toLowerCase() === cleanUsername));
+}
+
+function dbFindUserById(id) {
+  if (sqliteDb) {
+    const row = sqliteDb.prepare('SELECT * FROM users WHERE id = ?').get(id);
+    if (row) {
+      return {
+        ...row,
+        friends: JSON.parse(row.friends || '[]')
+      };
+    }
+    return null;
+  }
+  return jsonDb.users.find(u => u.id === id);
+}
+
+function dbInsertUser(user) {
+  if (sqliteDb) {
+    sqliteDb.prepare(`
+      INSERT INTO users (id, name, tag, username, phone, password, avatar, bio, friends, status, last_seen)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      user.id, user.name, user.tag, user.username, user.phone, user.password,
+      user.avatar, user.bio, JSON.stringify(user.friends || []), 'offline', user.lastSeen
+    );
+  }
+  jsonDb.users = jsonDb.users.filter(u => u.id !== user.id);
+  jsonDb.users.push(user);
+  saveJSONDB(jsonDb);
+}
+
+function dbUpdateUserFriends(userId, friendsArr) {
+  if (sqliteDb) {
+    sqliteDb.prepare('UPDATE users SET friends = ? WHERE id = ?').run(JSON.stringify(friendsArr), userId);
+  }
+  const u = jsonDb.users.find(x => x.id === userId);
+  if (u) u.friends = friendsArr;
+  saveJSONDB(jsonDb);
+}
+
+function dbGetAllRooms() {
+  if (sqliteDb) {
+    const rows = sqliteDb.prepare('SELECT * FROM rooms').all();
+    return rows.map(r => ({
+      ...r,
+      isGroup: true,
+      members: JSON.parse(r.members || '[]')
+    }));
+  }
+  return jsonDb.rooms || [];
+}
+
+function dbInsertRoom(room) {
+  if (sqliteDb) {
+    sqliteDb.prepare(`
+      INSERT INTO rooms (id, name, creator_id, creator_name, avatar, description, members, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      room.id, room.name, room.creatorId, room.creatorName, room.avatar,
+      room.description, JSON.stringify(room.members || []), room.createdAt || Date.now()
+    );
+  }
+  jsonDb.rooms = jsonDb.rooms.filter(r => r.id !== room.id);
+  jsonDb.rooms.push(room);
+  saveJSONDB(jsonDb);
+}
+
+function dbDeleteRoom(roomId) {
+  if (sqliteDb) {
+    sqliteDb.prepare('DELETE FROM rooms WHERE id = ?').run(roomId);
+    sqliteDb.prepare('DELETE FROM messages WHERE target_id = ?').run(roomId);
+  }
+  jsonDb.rooms = jsonDb.rooms.filter(r => r.id !== roomId);
+  jsonDb.messages = jsonDb.messages.filter(m => m.targetId !== roomId);
+  saveJSONDB(jsonDb);
+}
+
+function dbInsertMessage(msg) {
+  if (sqliteDb) {
+    sqliteDb.prepare(`
+      INSERT INTO messages (id, sender_id, sender_name, sender_avatar, target_id, is_group, text, image_url, file_url, file_name, reply_to, reactions, is_pinned, recalled, timestamp)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      msg.id, msg.senderId, msg.senderName, msg.senderAvatar, msg.targetId,
+      msg.isGroup ? 1 : 0, msg.text || '', msg.imageUrl, msg.fileUrl, msg.fileName,
+      msg.replyTo ? JSON.stringify(msg.replyTo) : null,
+      JSON.stringify(msg.reactions || {}), msg.isPinned ? 1 : 0, msg.recalled ? 1 : 0, msg.timestamp
+    );
+  }
+  jsonDb.messages.push(msg);
+  saveJSONDB(jsonDb);
+}
+
+function dbGetMessages(targetId, currentUserId, isGroup) {
+  if (sqliteDb) {
+    let rows = [];
+    if (isGroup) {
+      rows = sqliteDb.prepare('SELECT * FROM messages WHERE target_id = ? ORDER BY timestamp ASC').all(targetId);
+    } else {
+      rows = sqliteDb.prepare(`
+        SELECT * FROM messages
+        WHERE is_group = 0 AND (
+          (sender_id = ? AND target_id = ?) OR
+          (sender_id = ? AND target_id = ?)
+        )
+        ORDER BY timestamp ASC
+      `).all(currentUserId, targetId, targetId, currentUserId);
+    }
+    return rows.map(r => ({
+      id: r.id,
+      senderId: r.sender_id,
+      senderName: r.sender_name,
+      senderAvatar: r.sender_avatar,
+      targetId: r.target_id,
+      isGroup: r.is_group === 1,
+      text: r.text,
+      imageUrl: r.image_url,
+      fileUrl: r.file_url,
+      fileName: r.file_name,
+      replyTo: r.reply_to ? JSON.parse(r.reply_to) : null,
+      reactions: JSON.parse(r.reactions || '{}'),
+      isPinned: r.is_pinned === 1,
+      recalled: r.recalled === 1,
+      timestamp: r.timestamp
+    }));
+  }
+
+  if (isGroup) {
+    return jsonDb.messages.filter(m => m.targetId === targetId);
+  }
+  return jsonDb.messages.filter(m =>
+    !m.isGroup &&
+    ((m.senderId === currentUserId && m.targetId === targetId) ||
+     (m.senderId === targetId && m.targetId === currentUserId))
+  );
+}
 
 // Track online sockets: userId -> Set of socket.ids
 const userSocketsMap = new Map();
@@ -139,7 +331,6 @@ function isUserOnline(userId) {
 // REST API ENDPOINTS
 // ===================================================================
 
-// Upload endpoint
 app.post('/api/upload', upload.single('file'), (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'Không có tệp nào được tải lên' });
@@ -153,16 +344,13 @@ app.post('/api/upload', upload.single('file'), (req, res) => {
   });
 });
 
-// Bootstrap state
 app.get('/api/bootstrap', (req, res) => {
-  const usersWithStatus = db.users.map(u => safeUser(u, isUserOnline(u.id)));
-  res.json({
-    users: usersWithStatus,
-    rooms: db.rooms
-  });
+  const users = dbGetAllUsers().map(u => safeUser(u, isUserOnline(u.id)));
+  const rooms = dbGetAllRooms();
+  res.json({ users, rooms });
 });
 
-// Authentication: Register
+// Authentication: Register into SQLite Database
 app.post('/api/auth/register', (req, res) => {
   const { name, phone, username, password, avatar, bio } = req.body;
 
@@ -177,13 +365,13 @@ app.post('/api/auth/register', (req, res) => {
     return res.status(400).json({ error: 'Số điện thoại không hợp lệ (cần từ 9 đến 11 chữ số)!' });
   }
 
-  const existingPhone = db.users.find(u => u.phone === cleanPhone);
-  if (existingPhone) {
+  const existingPhoneUser = dbFindUserByAccount(cleanPhone);
+  if (existingPhoneUser) {
     return res.status(400).json({ error: 'Số điện thoại này đã được đăng ký tài khoản!' });
   }
 
-  const existingUser = db.users.find(u => u.username === cleanUsername);
-  if (existingUser) {
+  const existingUsernameUser = dbFindUserByAccount(cleanUsername);
+  if (existingUsernameUser) {
     return res.status(400).json({ error: 'Tên đăng nhập này đã được sử dụng, vui lòng chọn tên khác!' });
   }
 
@@ -197,17 +385,14 @@ app.post('/api/auth/register', (req, res) => {
     avatar: avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(cleanUsername)}`,
     bio: bio ? bio.trim() : 'Chào bạn, tôi vừa tham gia ZaloChat!',
     friends: [],
-    friendRequestsReceived: [],
-    friendRequestsSent: [],
     status: 'offline',
     lastSeen: new Date().toISOString()
   };
 
-  db.users.push(newUser);
-  saveDB(db);
+  dbInsertUser(newUser);
 
   // Broadcast new user list immediately to all connected sockets
-  io.emit('users:list_updated', db.users.map(u => safeUser(u, isUserOnline(u.id))));
+  io.emit('users:list_updated', dbGetAllUsers().map(u => safeUser(u, isUserOnline(u.id))));
 
   res.json({
     success: true,
@@ -215,7 +400,7 @@ app.post('/api/auth/register', (req, res) => {
   });
 });
 
-// Authentication: Login
+// Authentication: Login from SQLite Database
 app.post('/api/auth/login', (req, res) => {
   const { account, password } = req.body;
 
@@ -223,14 +408,7 @@ app.post('/api/auth/login', (req, res) => {
     return res.status(400).json({ error: 'Vui lòng nhập số điện thoại hoặc tên đăng nhập và mật khẩu!' });
   }
 
-  const cleanAcc = account.trim().toLowerCase().replace(/[@\s]/g, '');
-  const rawAcc = account.trim().replace(/\s+/g, '');
-
-  const user = db.users.find(u => 
-    u.phone === rawAcc || 
-    (u.username && u.username.toLowerCase() === cleanAcc)
-  );
-
+  const user = dbFindUserByAccount(account);
   if (!user) {
     return res.status(400).json({ error: 'Số điện thoại hoặc tên đăng nhập không tồn tại!' });
   }
@@ -250,14 +428,13 @@ app.get('/api/users/search', (req, res) => {
   const query = (req.query.q || '').trim().toLowerCase();
   const currentUserId = req.query.currentUserId;
 
-  if (!query) {
-    return res.json({ results: [] });
-  }
+  if (!query) return res.json({ results: [] });
 
-  const currentUser = db.users.find(u => u.id === currentUserId);
+  const currentUser = dbFindUserById(currentUserId);
   const cleanQ = query.replace(/[@\s]/g, '');
 
-  const matched = db.users.filter(u => {
+  const all = dbGetAllUsers();
+  const matched = all.filter(u => {
     if (u.id === currentUserId) return false;
     const matchPhone = u.phone && u.phone.includes(cleanQ);
     const matchUsername = u.username && u.username.toLowerCase().includes(cleanQ);
@@ -267,10 +444,9 @@ app.get('/api/users/search', (req, res) => {
 
   const results = matched.map(u => {
     let isFriend = false;
-    if (currentUser && (currentUser.friends || []).includes(u.id)) {
+    if (currentUser && Array.isArray(currentUser.friends) && currentUser.friends.includes(u.id)) {
       isFriend = true;
     }
-
     return {
       ...safeUser(u, isUserOnline(u.id)),
       isFriend
@@ -287,11 +463,16 @@ app.get('/api/users/search', (req, res) => {
 io.on('connection', (socket) => {
   let currentUser = null;
 
-  // User connection registration
   socket.on('user:login', (userData) => {
-    if (!userData || !userData.id) return;
-    let user = db.users.find(u => u.id === userData.id);
-    if (!user) return;
+    if (!userData || !userData.id) {
+      socket.emit('login:failed', { error: 'Thông tin tài khoản không hợp lệ' });
+      return;
+    }
+    let user = dbFindUserById(userData.id);
+    if (!user) {
+      socket.emit('login:failed', { error: 'Tài khoản không tồn tại trên hệ thống' });
+      return;
+    }
 
     currentUser = user;
 
@@ -304,20 +485,19 @@ io.on('connection', (socket) => {
     userSocketsMap.get(user.id).add(socket.id);
 
     // Auto join rooms where user is a member
-    db.rooms.forEach(room => {
+    const rooms = dbGetAllRooms();
+    rooms.forEach(room => {
       if (!room.members || room.members.includes(user.id)) {
         socket.join(room.id);
       }
     });
 
-    // Notify client of successful login
     socket.emit('login:success', {
       user: safeUser(user, true),
-      users: db.users.map(u => safeUser(u, isUserOnline(u.id))),
-      rooms: db.rooms.filter(r => !r.members || r.members.includes(user.id))
+      users: dbGetAllUsers().map(u => safeUser(u, isUserOnline(u.id))),
+      rooms: rooms.filter(r => !r.members || r.members.includes(user.id))
     });
 
-    // Broadcast user presence change to all clients
     io.emit('user:status_changed', {
       userId: user.id,
       status: 'online',
@@ -329,62 +509,51 @@ io.on('connection', (socket) => {
   socket.on('friend:add_direct', ({ targetUserId }) => {
     if (!currentUser || !targetUserId || currentUser.id === targetUserId) return;
 
-    const me = db.users.find(u => u.id === currentUser.id);
-    const target = db.users.find(u => u.id === targetUserId);
+    const me = dbFindUserById(currentUser.id);
+    const target = dbFindUserById(targetUserId);
     if (!me || !target) return;
 
-    if (!Array.isArray(me.friends)) me.friends = [];
-    if (!Array.isArray(target.friends)) target.friends = [];
+    let myFriends = Array.isArray(me.friends) ? me.friends : [];
+    let targetFriends = Array.isArray(target.friends) ? target.friends : [];
 
-    if (!me.friends.includes(targetUserId)) {
-      me.friends.push(targetUserId);
-    }
-    if (!target.friends.includes(currentUser.id)) {
-      target.friends.push(currentUser.id);
-    }
+    if (!myFriends.includes(targetUserId)) myFriends.push(targetUserId);
+    if (!targetFriends.includes(currentUser.id)) targetFriends.push(currentUser.id);
 
-    saveDB(db);
+    dbUpdateUserFriends(me.id, myFriends);
+    dbUpdateUserFriends(target.id, targetFriends);
 
-    // Notify target user room immediately
     io.to(`user_${targetUserId}`).emit('friend:added', {
       friend: safeUser(me, isUserOnline(me.id)),
       message: `${me.name} đã thêm bạn vào danh bạ!`
     });
 
-    // Notify sender user room immediately
     io.to(`user_${currentUser.id}`).emit('friend:added', {
       friend: safeUser(target, isUserOnline(target.id)),
       message: `Đã kết bạn thành công với ${target.name}!`
     });
 
-    // Broadcast updated users list
-    io.emit('users:list_updated', db.users.map(u => safeUser(u, isUserOnline(u.id))));
+    io.emit('users:list_updated', dbGetAllUsers().map(u => safeUser(u, isUserOnline(u.id))));
   });
 
   // Unfriend / Remove friend
   socket.on('friend:remove', ({ targetUserId }) => {
     if (!currentUser || !targetUserId) return;
 
-    const me = db.users.find(u => u.id === currentUser.id);
-    const target = db.users.find(u => u.id === targetUserId);
+    const me = dbFindUserById(currentUser.id);
+    const target = dbFindUserById(targetUserId);
     if (!me) return;
 
-    me.friends = (me.friends || []).filter(id => id !== targetUserId);
+    const myFriends = (me.friends || []).filter(id => id !== targetUserId);
+    dbUpdateUserFriends(me.id, myFriends);
+
     if (target) {
-      target.friends = (target.friends || []).filter(id => id !== currentUser.id);
+      const targetFriends = (target.friends || []).filter(id => id !== currentUser.id);
+      dbUpdateUserFriends(target.id, targetFriends);
     }
 
-    saveDB(db);
-
-    // Notify both sides
-    io.to(`user_${targetUserId}`).emit('friend:removed', {
-      removedFriendId: currentUser.id
-    });
-    io.to(`user_${currentUser.id}`).emit('friend:removed', {
-      removedFriendId: targetUserId
-    });
-
-    io.emit('users:list_updated', db.users.map(u => safeUser(u, isUserOnline(u.id))));
+    io.to(`user_${targetUserId}`).emit('friend:removed', { removedFriendId: currentUser.id });
+    io.to(`user_${currentUser.id}`).emit('friend:removed', { removedFriendId: targetUserId });
+    io.emit('users:list_updated', dbGetAllUsers().map(u => safeUser(u, isUserOnline(u.id))));
   });
 
   // Create Group Chat
@@ -404,10 +573,8 @@ io.on('connection', (socket) => {
       createdAt: Date.now()
     };
 
-    db.rooms.push(newRoom);
-    saveDB(db);
+    dbInsertRoom(newRoom);
 
-    // Make all online members join this room's socket channel
     allMembers.forEach(memId => {
       const memSockets = userSocketsMap.get(memId);
       if (memSockets) {
@@ -423,36 +590,31 @@ io.on('connection', (socket) => {
   // Delete Group Chat
   socket.on('room:delete', ({ roomId }) => {
     if (!currentUser || !roomId) return;
-    const room = db.rooms.find(r => r.id === roomId);
-    if (!room) return;
-
-    const members = room.members || [];
-    db.rooms = db.rooms.filter(r => r.id !== roomId);
-    db.messages = db.messages.filter(m => m.targetId !== roomId);
-    saveDB(db);
-
-    // Notify all members
-    members.forEach(memId => {
-      io.to(`user_${memId}`).emit('room:deleted', { roomId });
-    });
+    dbDeleteRoom(roomId);
     io.emit('room:deleted', { roomId });
   });
 
   // Pin Message
   socket.on('message:pin', ({ messageId, targetId, isGroup }) => {
     if (!currentUser) return;
-    const msg = db.messages.find(m => m.id === messageId);
-    if (!msg) return;
 
-    // Unpin other messages in the same conversation
-    db.messages.forEach(m => {
-      if (m.targetId === targetId || (!isGroup && ((m.senderId === currentUser.id && m.targetId === targetId) || (m.senderId === targetId && m.targetId === currentUser.id)))) {
-        m.isPinned = false;
+    if (sqliteDb) {
+      if (isGroup) {
+        sqliteDb.prepare('UPDATE messages SET is_pinned = 0 WHERE target_id = ?').run(targetId);
+      } else {
+        sqliteDb.prepare(`
+          UPDATE messages SET is_pinned = 0
+          WHERE is_group = 0 AND (
+            (sender_id = ? AND target_id = ?) OR (sender_id = ? AND target_id = ?)
+          )
+        `).run(currentUser.id, targetId, targetId, currentUser.id);
       }
-    });
+      sqliteDb.prepare('UPDATE messages SET is_pinned = 1 WHERE id = ?').run(messageId);
+    }
 
-    msg.isPinned = true;
-    saveDB(db);
+    const messages = dbGetMessages(targetId, currentUser.id, isGroup);
+    const msg = messages.find(m => m.id === messageId);
+    if (!msg) return;
 
     const payload = { message: msg, targetId, isGroup };
     if (isGroup) {
@@ -466,9 +628,9 @@ io.on('connection', (socket) => {
   // Unpin Message
   socket.on('message:unpin', ({ messageId, targetId, isGroup }) => {
     if (!currentUser) return;
-    const msg = db.messages.find(m => m.id === messageId);
-    if (msg) msg.isPinned = false;
-    saveDB(db);
+    if (sqliteDb) {
+      sqliteDb.prepare('UPDATE messages SET is_pinned = 0 WHERE id = ?').run(messageId);
+    }
 
     const payload = { messageId, targetId, isGroup };
     if (isGroup) {
@@ -479,9 +641,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  // ===================================================================
-  // REAL-TIME WEBRTC CALLING (AUDIO & VIDEO)
-  // ===================================================================
+  // WebRTC Calling Signaling
   socket.on('call:initiate', ({ targetUserId, isVideo, offer }) => {
     if (!currentUser || !targetUserId) return;
     io.to(`user_${targetUserId}`).emit('call:incoming', {
@@ -518,17 +678,7 @@ io.on('connection', (socket) => {
   socket.on('chat:get_history', ({ targetId, isGroup }) => {
     if (!currentUser) return;
 
-    let relevantMessages = [];
-    if (isGroup) {
-      relevantMessages = db.messages.filter(m => m.targetId === targetId);
-    } else {
-      relevantMessages = db.messages.filter(m => 
-        !m.isGroup &&
-        ((m.senderId === currentUser.id && m.targetId === targetId) ||
-         (m.senderId === targetId && m.targetId === currentUser.id))
-      );
-    }
-
+    const relevantMessages = dbGetMessages(targetId, currentUser.id, isGroup);
     const pinnedMsg = relevantMessages.find(m => m.isPinned);
 
     socket.emit('chat:history', {
@@ -539,7 +689,7 @@ io.on('connection', (socket) => {
     });
   });
 
-  // Sending a message: Realtime dispatch to both rooms
+  // Send message
   socket.on('message:send', (msgData) => {
     if (!currentUser) return;
 
@@ -561,8 +711,7 @@ io.on('connection', (socket) => {
       recalled: false
     };
 
-    db.messages.push(newMessage);
-    saveDB(db);
+    dbInsertMessage(newMessage);
 
     if (msgData.isGroup) {
       io.to(msgData.targetId).emit('message:new', newMessage);
@@ -572,7 +721,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Typing indicator
+  // Typing indicators
   socket.on('typing:start', ({ targetId, isGroup }) => {
     if (!currentUser) return;
     const payload = {
@@ -581,7 +730,6 @@ io.on('connection', (socket) => {
       targetId,
       isGroup
     };
-
     if (isGroup) {
       socket.to(targetId).emit('typing:display', payload);
     } else {
@@ -596,7 +744,6 @@ io.on('connection', (socket) => {
       targetId,
       isGroup
     };
-
     if (isGroup) {
       socket.to(targetId).emit('typing:hide', payload);
     } else {
@@ -604,55 +751,44 @@ io.on('connection', (socket) => {
     }
   });
 
-  // React to a message
+  // React to message
   socket.on('message:react', ({ messageId, emoji }) => {
     if (!currentUser) return;
-    const msg = db.messages.find(m => m.id === messageId);
-    if (!msg) return;
+    let reactions = {};
 
-    if (!msg.reactions) msg.reactions = {};
-    if (!msg.reactions[emoji]) msg.reactions[emoji] = [];
+    if (sqliteDb) {
+      const row = sqliteDb.prepare('SELECT reactions, target_id, is_group FROM messages WHERE id = ?').get(messageId);
+      if (!row) return;
+      reactions = JSON.parse(row.reactions || '{}');
+      if (!reactions[emoji]) reactions[emoji] = [];
 
-    const index = msg.reactions[emoji].indexOf(currentUser.id);
-    if (index > -1) {
-      msg.reactions[emoji].splice(index, 1);
-      if (msg.reactions[emoji].length === 0) delete msg.reactions[emoji];
-    } else {
-      Object.keys(msg.reactions).forEach(e => {
-        msg.reactions[e] = msg.reactions[e].filter(uid => uid !== currentUser.id);
-        if (msg.reactions[e].length === 0) delete msg.reactions[e];
-      });
-      if (!msg.reactions[emoji]) msg.reactions[emoji] = [];
-      msg.reactions[emoji].push(currentUser.id);
+      const idx = reactions[emoji].indexOf(currentUser.id);
+      if (idx > -1) {
+        reactions[emoji].splice(idx, 1);
+        if (reactions[emoji].length === 0) delete reactions[emoji];
+      } else {
+        Object.keys(reactions).forEach(e => {
+          reactions[e] = reactions[e].filter(uid => uid !== currentUser.id);
+          if (reactions[e].length === 0) delete reactions[e];
+        });
+        if (!reactions[emoji]) reactions[emoji] = [];
+        reactions[emoji].push(currentUser.id);
+      }
+
+      sqliteDb.prepare('UPDATE messages SET reactions = ? WHERE id = ?').run(JSON.stringify(reactions), messageId);
+      io.emit('message:reaction_updated', { messageId, reactions, targetId: row.target_id, isGroup: row.is_group === 1 });
     }
-
-    saveDB(db);
-    io.emit('message:reaction_updated', {
-      messageId: msg.id,
-      reactions: msg.reactions,
-      targetId: msg.targetId,
-      isGroup: msg.isGroup
-    });
   });
 
   // Recall message
   socket.on('message:recall', ({ messageId }) => {
     if (!currentUser) return;
-    const msg = db.messages.find(m => m.id === messageId);
-    if (!msg || msg.senderId !== currentUser.id) return;
-
-    msg.recalled = true;
-    msg.text = 'Tin nhắn đã được thu hồi';
-    msg.imageUrl = null;
-    msg.fileUrl = null;
-    msg.reactions = {};
-
-    saveDB(db);
-    io.emit('message:recalled', {
-      messageId: msg.id,
-      targetId: msg.targetId,
-      isGroup: msg.isGroup
-    });
+    if (sqliteDb) {
+      const row = sqliteDb.prepare('SELECT * FROM messages WHERE id = ?').get(messageId);
+      if (!row || row.sender_id !== currentUser.id) return;
+      sqliteDb.prepare(`UPDATE messages SET recalled = 1, text = 'Tin nhắn đã được thu hồi', image_url = NULL, file_url = NULL, reactions = '{}' WHERE id = ?`).run(messageId);
+      io.emit('message:recalled', { messageId, targetId: row.target_id, isGroup: row.is_group === 1 });
+    }
   });
 
   // Disconnect handler
@@ -664,13 +800,9 @@ io.on('connection', (socket) => {
         if (userSockets.size === 0) {
           userSocketsMap.delete(currentUser.id);
           const lastSeen = new Date().toISOString();
-          
-          const dbUser = db.users.find(u => u.id === currentUser.id);
-          if (dbUser) {
-            dbUser.lastSeen = lastSeen;
-            saveDB(db);
+          if (sqliteDb) {
+            sqliteDb.prepare('UPDATE users SET last_seen = ? WHERE id = ?').run(lastSeen, currentUser.id);
           }
-
           io.emit('user:status_changed', {
             userId: currentUser.id,
             status: 'offline',

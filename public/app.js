@@ -350,12 +350,14 @@
       console.error('Failed to bootstrap app:', err);
     }
 
-    const cachedUser = sessionStorage.getItem('zalochat_user');
+    const cachedUser = localStorage.getItem('zalochat_user');
     if (cachedUser) {
       try {
         const parsed = JSON.parse(cachedUser);
+        hideAuthModal();
         connectSocket(parsed);
       } catch (e) {
+        localStorage.removeItem('zalochat_user');
         showAuthModal('login');
       }
     } else {
@@ -383,7 +385,7 @@
   }
 
   function loginUserDirect(user) {
-    sessionStorage.setItem('zalochat_user', JSON.stringify(user));
+    localStorage.setItem('zalochat_user', JSON.stringify(user));
     hideAuthModal();
     connectSocket(user);
   }
@@ -396,7 +398,7 @@
     btnLogout.addEventListener('click', () => {
       if (confirm('Bạn có chắc muốn đăng xuất?')) {
         if (socket) socket.disconnect();
-        sessionStorage.removeItem('zalochat_user');
+        localStorage.removeItem('zalochat_user');
         currentUser = null;
         currentTarget = null;
         activeMessages = [];
@@ -824,10 +826,19 @@
     });
 
     socket.on('login:success', (data) => {
+      hideAuthModal();
       currentUser = data.user;
+      localStorage.setItem('zalochat_user', JSON.stringify(data.user));
       allUsers = data.users;
       allRooms = data.rooms;
       renderSidebarContent();
+    });
+
+    socket.on('login:failed', (data) => {
+      localStorage.removeItem('zalochat_user');
+      currentUser = null;
+      showAuthModal('login');
+      showAuthError(data?.error || 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.');
     });
 
     socket.on('users:list_updated', (updatedUsers) => {
