@@ -1,0 +1,85 @@
+{
+  "users": [
+    {
+      "id": "user_quan",
+      "name": "Minh Quân",
+      "tag": "@minhquan",
+      "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
+      "bio": "Lập trình viên • Thích công nghệ & Cà phê ☕",
+      "status": "offline",
+      "lastSeen": "2026-10-17T06:32:26.239Z"
+    },
+    {
+      "id": "user_linh",
+      "name": "Hà Linh",
+      "tag": "@halinh",
+      "avatar": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80",
+      "bio": "UI/UX Designer • Yêu âm nhạc & Du lịch 🎧✈️",
+      "status": "offline",
+      "lastSeen": "2026-10-17T06:32:26.241Z"
+    },
+    {
+      "id": "user_tuan",
+      "name": "Tuấn Anh",
+      "tag": "@tuananh",
+      "avatar": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80",
+      "bio": "Photographer & Gamer 🎮📷",
+      "status": "offline",
+      "lastSeen": "2026-10-17T06:32:26.241Z"
+    },
+    {
+      "id": "user_ngoc",
+      "name": "Bảo Ngọc",
+      "tag": "@baongoc",
+      "avatar": "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&auto=format&fit=crop&q=80",
+      "bio": "Content Creator • Yêu mèo 🐱✨",
+      "status": "offline",
+      "lastSeen": "2026-10-17T06:32:26.241Z"
+    }
+  ],
+  "rooms": [
+    {
+      "id": "room_general",
+      "name": "🌟 Hội Bạn Thân (Chém gió)",
+      "avatar": "https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=150&auto=format&fit=crop&q=80",
+      "description": "Nhóm trò chuyện công khai cho mọi người",
+      "isGroup": true
+    }
+  ],
+  "messages": [
+    {
+      "id": "msg_welcome_1",
+      "senderId": "user_quan",
+      "senderName": "Minh Quân",
+      "senderAvatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
+      "targetId": "room_general",
+      "isGroup": true,
+      "text": "Chào cả nhà! Chúc mọi người một ngày làm việc và trò chuyện vui vẻ nhé 🚀",
+      "timestamp": 1792215146241,
+      "reactions": {
+        "❤️": [
+          "user_linh",
+          "user_ngoc"
+        ],
+        "👍": [
+          "user_tuan"
+        ]
+      }
+    },
+    {
+      "id": "msg_welcome_2",
+      "senderId": "user_linh",
+      "senderName": "Hà Linh",
+      "senderAvatar": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80",
+      "targetId": "room_general",
+      "isGroup": true,
+      "text": "Giao diện web chat này xịn xò quá nè mọi người ơi! Có gửi ảnh, thả tim, âm thanh đầy đủ như Messenger luôn á 😍",
+      "timestamp": 1792216946241,
+      "reactions": {
+        "🔥": [
+          "user_quan"
+        ]
+      }
+    }
+  ]
+}

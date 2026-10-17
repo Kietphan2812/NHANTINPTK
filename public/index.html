@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="vi" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ZaloChat Web - Ứng dụng nhắn tin thời gian thực</title>
+  <meta name="description" content="Nền tảng nhắn tin trực tuyến thời gian thực hiện đại, nhanh chóng và mượt mà tương tự Zalo & Messenger với đầy đủ tính năng chat, gửi ảnh, thả cảm xúc.">
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Background Ambient Glow -->
+  <div class="ambient-glow glow-1"></div>
+  <div class="ambient-glow glow-2"></div>
+
+  <!-- App Root Container -->
+  <div id="app" class="app-layout">
+    
+    <!-- LEFT SIDEBAR: Conversations & Navigation -->
+    <aside class="sidebar-left">
+      <!-- User Profile Header -->
+      <div class="sidebar-header">
+        <div class="my-profile" id="btn-my-profile" title="Xem thông tin cá nhân">
+          <div class="avatar-wrapper">
+            <img id="my-avatar" src="" alt="My Avatar" class="avatar">
+            <span class="status-indicator online"></span>
+          </div>
+          <div class="user-info">
+            <h2 id="my-name" class="user-name">Đang tải...</h2>
+            <span id="my-status-text" class="status-badge">Trực tuyến</span>
+          </div>
+        </div>
+        <div class="header-actions">
+          <button id="btn-theme-toggle" class="icon-btn" title="Chuyển chế độ Sáng / Tối">
+            <svg class="sun-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="moon-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          </button>
+          <button id="btn-sound-toggle" class="icon-btn" title="Bật / Tắt âm thanh thông báo">
+            <svg class="sound-on-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+            <svg class="sound-off-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+          </button>
+          <button id="btn-switch-user" class="icon-btn" title="Đổi tài khoản khác để test chat">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><polyline points="17 11 19 13 23 9"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Search Bar -->
+      <div class="search-box-wrapper">
+        <div class="search-box">
+          <svg class="search-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" id="conversation-search" placeholder="Tìm kiếm tin nhắn, bạn bè..." autocomplete="off">
+        </div>
+      </div>
+
+      <!-- Filter Tabs -->
+      <div class="conversation-filter-tabs">
+        <button class="filter-tab active" data-filter="all">Tất cả</button>
+        <button class="filter-tab" data-filter="direct">Cá nhân</button>
+        <button class="filter-tab" data-filter="group">Nhóm</button>
+      </div>
+
+      <!-- Conversations List -->
+      <div class="conversations-scroll" id="conversations-list">
+        <!-- Rendered dynamically via JS -->
+      </div>
+    </aside>
+
+    <!-- CENTER: Main Chat Box -->
+    <main class="chat-main" id="chat-main-area">
+      <!-- Chat Header -->
+      <header class="chat-header" id="chat-header">
+        <div class="chat-header-info">
+          <button id="btn-mobile-back" class="icon-btn mobile-only" title="Quay lại">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <div class="avatar-wrapper">
+            <img id="chat-target-avatar" src="" alt="Target Avatar" class="avatar">
+            <span id="chat-target-indicator" class="status-indicator"></span>
+          </div>
+          <div class="target-details">
+            <h1 id="chat-target-name" class="target-name">Đang tải...</h1>
+            <p id="chat-target-subtext" class="target-status">Đang kiểm tra kết nối...</p>
+          </div>
+        </div>
+
+        <div class="chat-header-actions">
+          <button id="btn-audio-call" class="action-btn" title="Gọi thoại (Mô phỏng)">
+            <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+          </button>
+          <button id="btn-video-call" class="action-btn" title="Gọi video (Mô phỏng)">
+            <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+          </button>
+          <button id="btn-toggle-info" class="action-btn" title="Thông tin cuộc hội thoại">
+            <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+          </button>
+        </div>
+      </header>
+
+      <!-- Message Flow Thread -->
+      <div class="messages-container" id="messages-container">
+        <div class="messages-stream" id="messages-stream">
+          <!-- Messages will be injected here -->
+        </div>
+
+        <!-- Real-time Typing Bubble -->
+        <div class="typing-indicator-bubble" id="typing-bubble" style="display: none;">
+          <span class="typing-name" id="typing-name">Bạn</span> đang soạn tin nhắn
+          <div class="bouncing-dots">
+            <span class="dot"></span>
+            <span class="dot"></span>
+            <span class="dot"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Floating Reply Preview -->
+      <div class="reply-preview-bar" id="reply-preview-bar" style="display: none;">
+        <div class="reply-line"></div>
+        <div class="reply-content">
+          <span class="reply-to-label">Đang trả lời <b id="reply-to-user">...</b>:</span>
+          <span class="reply-snippet" id="reply-snippet">Nội dung tin nhắn</span>
+        </div>
+        <button id="btn-cancel-reply" class="cancel-reply-btn" title="Hủy trả lời">✕</button>
+      </div>
+
+      <!-- Floating Image Preview before sending -->
+      <div class="image-upload-preview" id="image-upload-preview" style="display: none;">
+        <div class="preview-thumb-box">
+          <img id="preview-thumb-img" src="" alt="Ảnh đính kèm">
+          <button id="btn-remove-preview-image" class="remove-preview-btn" title="Xóa ảnh">✕</button>
+        </div>
+        <span class="preview-filename" id="preview-filename">image.png</span>
+      </div>
+
+      <!-- Chat Input Section -->
+      <footer class="chat-input-wrapper">
+        <input type="file" id="file-input" accept="image/*" style="display: none;">
+
+        <div class="chat-input-toolbar">
+          <button id="btn-attach-image" class="tool-btn" title="Gửi ảnh">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+          </button>
+          
+          <div class="input-field-container">
+            <textarea id="message-input" rows="1" placeholder="Nhập tin nhắn... (Nhấn Enter để gửi, Shift+Enter xuống dòng)"></textarea>
+          </div>
+
+          <button id="btn-emoji-trigger" class="tool-btn" title="Chọn biểu tượng cảm xúc">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+          </button>
+
+          <button id="btn-send-message" class="send-btn" title="Gửi tin nhắn (Enter)">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          </button>
+        </div>
+
+        <!-- Floating Emoji Picker Box -->
+        <div class="emoji-picker-popup" id="emoji-picker" style="display: none;">
+          <div class="emoji-picker-header">
+            <span>Biểu tượng cảm xúc</span>
+            <button id="btn-close-emoji" class="close-emoji-btn">✕</button>
+          </div>
+          <div class="emoji-tabs">
+            <button class="emoji-tab active" data-cat="faces">Mặt cười</button>
+            <button class="emoji-tab" data-cat="gestures">Bàn tay</button>
+            <button class="emoji-tab" data-cat="hearts">Trái tim</button>
+            <button class="emoji-tab" data-cat="objects">Khác</button>
+          </div>
+          <div class="emoji-grid" id="emoji-grid">
+            <!-- Emojis injected by JS -->
+          </div>
+        </div>
+      </footer>
+    </main>
+
+    <!-- RIGHT SIDEBAR: Chat Details & Shared Media -->
+    <aside class="sidebar-right" id="sidebar-right">
+      <div class="sidebar-right-header">
+        <h3>Hội thoại & Phương tiện</h3>
+        <button id="btn-close-right-sidebar" class="icon-btn" title="Đóng">✕</button>
+      </div>
+
+      <div class="info-body">
+        <div class="info-profile-card">
+          <img id="info-avatar" src="" alt="Info Avatar" class="big-avatar">
+          <h2 id="info-name" class="info-name">Tên</h2>
+          <p id="info-bio" class="info-bio">Tiểu sử</p>
+        </div>
+
+        <div class="info-stats">
+          <div class="stat-item">
+            <span class="stat-label">Loại</span>
+            <span class="stat-value" id="info-chat-type">1-1</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Trạng thái</span>
+            <span class="stat-value" id="info-online-status">Trực tuyến</span>
+          </div>
+        </div>
+
+        <div class="shared-media-section">
+          <h4>Ảnh đã gửi trong cuộc trò chuyện</h4>
+          <div class="shared-media-grid" id="shared-media-grid">
+            <p class="empty-media-text">Chưa có ảnh nào được gửi</p>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+  </div>
+
+  <!-- LOGIN / SWITCH USER MODAL -->
+  <div class="modal-overlay" id="user-select-modal">
+    <div class="modal-card">
+      <div class="modal-brand">
+        <div class="brand-icon">💬</div>
+        <h2>Chào mừng bạn đến với ZaloChat!</h2>
+        <p>Chọn một tài khoản để đăng nhập hoặc mở tab mới để chat qua lại giữa 2 tài khoản:</p>
+      </div>
+
+      <div class="account-selection-grid" id="account-selection-grid">
+        <!-- Preset users injected here -->
+      </div>
+
+      <div class="custom-login-divider">
+        <span>Hoặc tạo tên người dùng của riêng bạn</span>
+      </div>
+
+      <form id="custom-user-form" class="custom-user-form">
+        <div class="custom-input-group">
+          <input type="text" id="custom-user-name" placeholder="Nhập tên của bạn (vd: Hoàng Nam, Thu Trang...)" required maxlength="30">
+          <button type="submit" class="primary-btn">Vào Chat Ngay</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- LIGHTBOX MODAL FOR FULL-SIZE IMAGE PREVIEW -->
+  <div class="lightbox-modal" id="lightbox-modal" style="display: none;">
+    <button class="lightbox-close" id="lightbox-close">✕</button>
+    <img id="lightbox-img" src="" alt="Xem ảnh phóng to">
+  </div>
+
+  <!-- SIMULATED CALL MODAL -->
+  <div class="call-modal" id="call-modal" style="display: none;">
+    <div class="call-card">
+      <div class="call-avatar-pulse">
+        <img id="call-avatar" src="" alt="Call Avatar">
+        <div class="pulse-ring"></div>
+      </div>
+      <h3 id="call-user-name">Người dùng</h3>
+      <p id="call-status-label">Đang đổ chuông...</p>
+
+      <div class="call-actions">
+        <button id="btn-hangup-call" class="hangup-btn" title="Kết thúc cuộc gọi">
+          <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Socket.io Client Library -->
+  <script src="/socket.io/socket.io.js"></script>
+  <!-- Main Frontend Application Logic -->
+  <script src="app.js"></script>
+</body>
+</html>
