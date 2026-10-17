@@ -1,27 +1,49 @@
 /**
  * ZaloChat Frontend Application
- * Real-time messaging with Socket.IO, audio notifications, reactions, typing indicator, image upload
+ * Real-time messaging, Phone & Username Registration, Login, Add Friend, and Contacts
  */
 
 (() => {
   // DOM Elements
   const appEl = document.getElementById('app');
   const userSelectModal = document.getElementById('user-select-modal');
+  const authTabs = document.querySelectorAll('.auth-tab-btn');
+  const authLoginForm = document.getElementById('auth-login-form');
+  const authRegisterForm = document.getElementById('auth-register-form');
+  const authDemoPanel = document.getElementById('auth-demo-panel');
+  const authErrorAlert = document.getElementById('auth-error-alert');
   const accountGrid = document.getElementById('account-selection-grid');
-  const customUserForm = document.getElementById('custom-user-form');
-  const customUserNameInput = document.getElementById('custom-user-name');
+
+  // Login inputs
+  const loginAccountInput = document.getElementById('login-account');
+  const loginPasswordInput = document.getElementById('login-password');
+
+  // Register inputs
+  const regNameInput = document.getElementById('reg-name');
+  const regPhoneInput = document.getElementById('reg-phone');
+  const regUsernameInput = document.getElementById('reg-username');
+  const regPasswordInput = document.getElementById('reg-password');
 
   // Sidebar elements
   const myAvatar = document.getElementById('my-avatar');
   const myName = document.getElementById('my-name');
-  const myStatusText = document.getElementById('my-status-text');
+  const myPhoneTag = document.getElementById('my-phone-tag');
+  const btnOpenAddFriend = document.getElementById('btn-open-add-friend');
   const btnThemeToggle = document.getElementById('btn-theme-toggle');
   const btnSoundToggle = document.getElementById('btn-sound-toggle');
-  const btnSwitchUser = document.getElementById('btn-switch-user');
+  const btnLogout = document.getElementById('btn-logout');
   const convSearchInput = document.getElementById('conversation-search');
-  const convFilterTabs = document.querySelectorAll('.filter-tab');
+  const sidebarNavTabs = document.querySelectorAll('.nav-tab');
+  const requestsBadge = document.getElementById('requests-badge');
   const convListContainer = document.getElementById('conversations-list');
   const sidebarLeft = document.querySelector('.sidebar-left');
+
+  // Add Friend Modal
+  const addFriendModal = document.getElementById('add-friend-modal');
+  const btnCloseAddFriend = document.getElementById('btn-close-add-friend');
+  const searchFriendForm = document.getElementById('search-friend-form');
+  const searchFriendQuery = document.getElementById('search-friend-query');
+  const searchResultsArea = document.getElementById('search-results-area');
 
   // Chat main elements
   const btnMobileBack = document.getElementById('btn-mobile-back');
@@ -65,6 +87,7 @@
   const btnCloseRightSidebar = document.getElementById('btn-close-right-sidebar');
   const infoAvatar = document.getElementById('info-avatar');
   const infoName = document.getElementById('info-name');
+  const infoPhone = document.getElementById('info-phone');
   const infoBio = document.getElementById('info-bio');
   const infoChatType = document.getElementById('info-chat-type');
   const infoOnlineStatus = document.getElementById('info-online-status');
@@ -86,17 +109,17 @@
   let currentUser = null;
   let allUsers = [];
   let allRooms = [];
-  let currentTarget = null; // { id, name, avatar, isGroup, status, bio }
+  let currentTarget = null;
   let activeMessages = [];
-  let replyingTo = null; // message object
+  let replyingTo = null;
   let pendingImageFile = null;
   let typingTimer = null;
   let isTyping = false;
-  let currentFilter = 'all';
+  let currentSidebarTab = 'messages'; // 'messages' | 'friends' | 'requests'
   let isSoundEnabled = localStorage.getItem('zalochat_sound') !== 'false';
   let callAudioInterval = null;
 
-  // Web Audio Context for crisp notifications and ringtones
+  // Web Audio Context for sounds
   let audioCtx = null;
   function getAudioContext() {
     if (!audioCtx) {
@@ -113,8 +136,6 @@
     try {
       const ctx = getAudioContext();
       const now = ctx.currentTime;
-
-      // Bell sound: two harmonized gentle sine frequencies
       const osc1 = ctx.createOscillator();
       const osc2 = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -122,8 +143,8 @@
       osc1.type = 'sine';
       osc2.type = 'sine';
 
-      osc1.frequency.setValueAtTime(880, now); // A5
-      osc1.frequency.exponentialRampToValueAtTime(1320, now + 0.08); // E6
+      osc1.frequency.setValueAtTime(880, now);
+      osc1.frequency.exponentialRampToValueAtTime(1320, now + 0.08);
 
       osc2.frequency.setValueAtTime(1760, now + 0.05);
 
@@ -138,9 +159,7 @@
       osc2.start(now + 0.05);
       osc1.stop(now + 0.6);
       osc2.stop(now + 0.6);
-    } catch (e) {
-      console.warn('Audio play error:', e);
-    }
+    } catch (e) {}
   }
 
   function playRingTone() {
@@ -167,7 +186,7 @@
     } catch (e) {}
   }
 
-  // Emoji dataset
+  // Emojis dataset
   const emojiCategories = {
     faces: ['😀', '😃', '😄', '😁', '😆', '😅', '🤣', '😂', '🙂', '😉', '😊', '😇', '🥰', '😍', '🤩', '😘', '😋', '😜', '🤪', '😎', '🥳', '😏', '😒', '😔', '🥺', '😢', '😭', '😤', '😡', '🤯', '😱', '🤫', '🤔', '😴'],
     gestures: ['👍', '👎', '👏', '🙌', '🤝', '👊', '✌️', '🤞', '🤟', '🤘', '👌', '🤌', '👈', '👉', '👆', '👇', '✋', '👋', '💪', '🙏'],
@@ -175,7 +194,6 @@
     objects: ['🎉', '🎊', '🎁', '☕', '🍺', '🍕', '🍔', '🚀', '💯', '🌈', '⚡', '💡', '🎵', '⚽', '🎮', '📸', '🐱', '🐶', '🌸', '💼']
   };
 
-  // Initialize Emojis in Picker
   function renderEmojiGrid(category = 'faces') {
     emojiGrid.innerHTML = '';
     const emojis = emojiCategories[category] || emojiCategories.faces;
@@ -202,7 +220,6 @@
     adjustTextareaHeight(input);
   }
 
-  // Formatting helpers
   function formatTimestamp(timestamp) {
     const date = new Date(timestamp);
     const now = new Date();
@@ -233,6 +250,15 @@
     return text.replace(urlPattern, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
   }
 
+  function showAuthError(msg) {
+    authErrorAlert.textContent = msg;
+    authErrorAlert.style.display = 'block';
+  }
+  function clearAuthError() {
+    authErrorAlert.style.display = 'none';
+    authErrorAlert.textContent = '';
+  }
+
   // Theme Management
   function initTheme() {
     const savedTheme = localStorage.getItem('zalochat_theme') || 'dark';
@@ -246,7 +272,6 @@
     localStorage.setItem('zalochat_theme', next);
   }
 
-  // Sound Management
   function initSound() {
     if (!isSoundEnabled) {
       document.body.classList.add('sound-muted');
@@ -264,7 +289,6 @@
     }
   }
 
-  // Auto-resize textarea
   function adjustTextareaHeight(el) {
     el.style.height = 'auto';
     el.style.height = Math.min(el.scrollHeight, 120) + 'px';
@@ -276,72 +300,198 @@
     initSound();
     renderEmojiGrid('faces');
 
-    // Fetch initial users & rooms
     try {
       const res = await fetch('/api/bootstrap');
       const data = await res.json();
       allUsers = data.users || [];
       allRooms = data.rooms || [];
-      renderAccountSelectionModal();
+      renderDemoAccounts();
     } catch (err) {
       console.error('Failed to bootstrap app:', err);
     }
 
-    // Check if user is cached in sessionStorage (isolated per tab!)
     const cachedUser = sessionStorage.getItem('zalochat_user');
     if (cachedUser) {
       try {
         const parsed = JSON.parse(cachedUser);
         connectSocket(parsed);
       } catch (e) {
-        showUserModal();
+        showAuthModal('login');
       }
     } else {
-      showUserModal();
+      showAuthModal('login');
     }
 
     setupEventListeners();
   }
 
-  // Setup Event Listeners
+  function showAuthModal(tab = 'login') {
+    clearAuthError();
+    userSelectModal.style.display = 'flex';
+    switchAuthTab(tab);
+  }
+
+  function hideAuthModal() {
+    userSelectModal.style.display = 'none';
+  }
+
+  function switchAuthTab(tabName) {
+    clearAuthError();
+    authTabs.forEach(t => t.classList.toggle('active', t.dataset.auth === tabName));
+    authLoginForm.style.display = tabName === 'login' ? 'flex' : 'none';
+    authRegisterForm.style.display = tabName === 'register' ? 'flex' : 'none';
+    authDemoPanel.style.display = tabName === 'demo' ? 'block' : 'none';
+  }
+
+  function renderDemoAccounts() {
+    accountGrid.innerHTML = '';
+    allUsers.slice(0, 4).forEach(u => {
+      const card = document.createElement('div');
+      card.className = 'account-card-btn';
+      card.innerHTML = `
+        <img src="${u.avatar}" alt="${u.name}">
+        <div class="acc-info">
+          <span class="acc-name">${escapeHTML(u.name)}</span>
+          <span class="acc-tag">📞 ${escapeHTML(u.phone || '')}</span>
+        </div>
+      `;
+      card.addEventListener('click', () => {
+        loginUserDirect(u);
+      });
+      accountGrid.appendChild(card);
+    });
+  }
+
+  function loginUserDirect(user) {
+    sessionStorage.setItem('zalochat_user', JSON.stringify(user));
+    hideAuthModal();
+    connectSocket(user);
+  }
+
   function setupEventListeners() {
     btnThemeToggle.addEventListener('click', toggleTheme);
     btnSoundToggle.addEventListener('click', toggleSound);
 
-    btnSwitchUser.addEventListener('click', () => {
-      sessionStorage.removeItem('zalochat_user');
-      showUserModal();
+    // Logout
+    btnLogout.addEventListener('click', () => {
+      if (confirm('Bạn có chắc muốn đăng xuất?')) {
+        if (socket) socket.disconnect();
+        sessionStorage.removeItem('zalochat_user');
+        currentUser = null;
+        showAuthModal('login');
+      }
     });
 
-    customUserForm.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const name = customUserNameInput.value.trim();
-      if (!name) return;
-      const newUser = {
-        id: `user_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
-        name,
-        avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(name)}`,
-        bio: 'Chào bạn, tôi vừa tham gia!'
-      };
-      selectUser(newUser);
-    });
-
-    // Conversation Filter tabs
-    convFilterTabs.forEach(tab => {
+    // Auth Tabs
+    authTabs.forEach(tab => {
       tab.addEventListener('click', () => {
-        convFilterTabs.forEach(t => t.classList.remove('active'));
-        tab.classList.add('active');
-        currentFilter = tab.dataset.filter;
-        renderConversations();
+        switchAuthTab(tab.dataset.auth);
       });
     });
 
-    // Conversation Search
-    convSearchInput.addEventListener('input', () => {
-      renderConversations();
+    // Login Form Submit
+    authLoginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      clearAuthError();
+
+      const account = loginAccountInput.value.trim();
+      const password = loginPasswordInput.value.trim();
+      if (!account || !password) return;
+
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ account, password })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          showAuthError(data.error || 'Đăng nhập không thành công');
+          return;
+        }
+
+        loginUserDirect(data.user);
+      } catch (err) {
+        showAuthError('Lỗi kết nối máy chủ, vui lòng thử lại!');
+      }
     });
 
-    // Send Message Trigger
+    // Register Form Submit
+    authRegisterForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      clearAuthError();
+
+      const name = regNameInput.value.trim();
+      const phone = regPhoneInput.value.trim();
+      const username = regUsernameInput.value.trim();
+      const password = regPasswordInput.value.trim();
+
+      if (!name || !phone || !password) return;
+
+      try {
+        const res = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, phone, username, password })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          showAuthError(data.error || 'Đăng ký không thành công');
+          return;
+        }
+
+        alert('Đăng ký tài khoản thành công! Đang chuyển vào phòng chat...');
+        loginUserDirect(data.user);
+      } catch (err) {
+        showAuthError('Lỗi kết nối máy chủ, vui lòng thử lại!');
+      }
+    });
+
+    // Open & Close Add Friend Modal
+    btnOpenAddFriend.addEventListener('click', () => {
+      addFriendModal.style.display = 'flex';
+      searchFriendQuery.focus();
+    });
+    btnCloseAddFriend.addEventListener('click', () => {
+      addFriendModal.style.display = 'none';
+    });
+    addFriendModal.addEventListener('click', (e) => {
+      if (e.target === addFriendModal) addFriendModal.style.display = 'none';
+    });
+
+    // Search Friend Form Submit
+    searchFriendForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const query = searchFriendQuery.value.trim();
+      if (!query || !currentUser) return;
+
+      searchResultsArea.innerHTML = '<p class="text-center" style="color: var(--text-dim); padding: 12px;">Đang tìm kiếm...</p>';
+
+      try {
+        const res = await fetch(`/api/users/search?q=${encodeURIComponent(query)}&currentUserId=${currentUser.id}`);
+        const data = await res.json();
+        renderSearchResults(data.results || []);
+      } catch (err) {
+        searchResultsArea.innerHTML = '<p style="color: var(--danger); text-align: center; padding: 12px;">Lỗi tìm kiếm!</p>';
+      }
+    });
+
+    // Sidebar navigation tabs (Tin nhắn | Danh bạ | Lời mời)
+    sidebarNavTabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        sidebarNavTabs.forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        currentSidebarTab = tab.dataset.tab;
+        renderSidebarContent();
+      });
+    });
+
+    // Search input filtering
+    convSearchInput.addEventListener('input', () => {
+      renderSidebarContent();
+    });
+
+    // Message Input
     btnSendMessage.addEventListener('click', handleSendMessage);
     messageInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) {
@@ -349,7 +499,6 @@
         handleSendMessage();
       }
     });
-
     messageInput.addEventListener('input', () => {
       adjustTextareaHeight(messageInput);
       handleTypingInput();
@@ -368,7 +517,6 @@
         emojiPicker.style.display = 'none';
       }
     });
-
     emojiTabs.forEach(tab => {
       tab.addEventListener('click', () => {
         emojiTabs.forEach(t => t.classList.remove('active'));
@@ -381,16 +529,13 @@
     btnAttachImage.addEventListener('click', () => {
       fileInput.click();
     });
-
     fileInput.addEventListener('change', (e) => {
       const file = e.target.files[0];
       if (!file) return;
-
       if (!file.type.startsWith('image/')) {
         alert('Vui lòng chọn tệp hình ảnh!');
         return;
       }
-
       pendingImageFile = file;
       const reader = new FileReader();
       reader.onload = (event) => {
@@ -400,7 +545,6 @@
       };
       reader.readAsDataURL(file);
     });
-
     btnRemovePreviewImage.addEventListener('click', () => {
       pendingImageFile = null;
       fileInput.value = '';
@@ -442,46 +586,84 @@
     btnHangupCall.addEventListener('click', stopSimulatedCall);
   }
 
-  // Render Account Selection Grid
-  function renderAccountSelectionModal() {
-    accountGrid.innerHTML = '';
-    allUsers.forEach(u => {
+  // Render Search Results in Add Friend Modal
+  function renderSearchResults(results) {
+    searchResultsArea.innerHTML = '';
+    if (results.length === 0) {
+      searchResultsArea.innerHTML = '<p style="color: var(--text-dim); text-align: center; padding: 20px;">Không tìm thấy người dùng nào phù hợp.</p>';
+      return;
+    }
+
+    results.forEach(u => {
       const card = document.createElement('div');
-      card.className = 'account-card-btn';
+      card.className = 'search-user-card';
+
+      let actionBtnHtml = '';
+      if (u.relation === 'friend') {
+        actionBtnHtml = `<button class="btn-card-action chat-btn" data-action="chat" data-id="${u.id}">💬 Nhắn tin</button>`;
+      } else if (u.relation === 'pending_sent') {
+        actionBtnHtml = `<button class="btn-card-action disabled-btn">Đã gửi lời mời</button>`;
+      } else if (u.relation === 'pending_received') {
+        actionBtnHtml = `<button class="btn-card-action add-btn" data-action="accept" data-id="${u.id}">✓ Chấp nhận</button>`;
+      } else {
+        actionBtnHtml = `<button class="btn-card-action add-btn" data-action="add" data-id="${u.id}">+ Kết bạn</button>`;
+      }
+
       card.innerHTML = `
-        <img src="${u.avatar}" alt="${u.name}">
-        <div class="acc-info">
-          <span class="acc-name">${escapeHTML(u.name)}</span>
-          <span class="acc-tag">${escapeHTML(u.tag || '')}</span>
+        <div class="search-user-meta">
+          <img src="${u.avatar}" alt="${u.name}">
+          <div class="search-user-info">
+            <span class="search-user-name">${escapeHTML(u.name)}</span>
+            <span class="search-user-phone">📞 ${escapeHTML(u.phone || '')}</span>
+            <span class="search-user-tag">${escapeHTML(u.tag || '')}</span>
+          </div>
+        </div>
+        <div class="search-user-action">
+          ${actionBtnHtml}
         </div>
       `;
-      card.addEventListener('click', () => {
-        selectUser(u);
-      });
-      accountGrid.appendChild(card);
+
+      // Event handlers for action buttons
+      const btnAction = card.querySelector('[data-action]');
+      if (btnAction) {
+        btnAction.addEventListener('click', () => {
+          const action = btnAction.dataset.action;
+          if (action === 'chat') {
+            addFriendModal.style.display = 'none';
+            selectTarget({
+              id: u.id,
+              name: u.name,
+              avatar: u.avatar,
+              phone: u.phone,
+              tag: u.tag,
+              isGroup: false,
+              status: u.status === 'online' ? 'Đang hoạt động' : 'Ngoại tuyến',
+              bio: u.bio
+            });
+          } else if (action === 'add') {
+            socket.emit('friend:send_request', { targetUserId: u.id });
+            btnAction.textContent = 'Đã gửi lời mời';
+            btnAction.className = 'btn-card-action disabled-btn';
+            btnAction.disabled = true;
+          } else if (action === 'accept') {
+            socket.emit('friend:accept_request', { targetUserId: u.id });
+            btnAction.textContent = '💬 Nhắn tin';
+            btnAction.className = 'btn-card-action chat-btn';
+            btnAction.dataset.action = 'chat';
+          }
+        });
+      }
+
+      searchResultsArea.appendChild(card);
     });
   }
 
-  function showUserModal() {
-    userSelectModal.style.display = 'flex';
-  }
-
-  function hideUserModal() {
-    userSelectModal.style.display = 'none';
-  }
-
-  function selectUser(user) {
-    sessionStorage.setItem('zalochat_user', JSON.stringify(user));
-    hideUserModal();
-    connectSocket(user);
-  }
-
-  // Socket Connection & Event Handling
+  // Socket Connection & Events
   function connectSocket(user) {
     currentUser = user;
     myAvatar.src = user.avatar;
     myName.textContent = user.name;
-    myStatusText.textContent = 'Trực tuyến';
+    myPhoneTag.textContent = `📞 ${user.phone || ''} (${user.tag || ''})`;
 
     if (socket) {
       socket.disconnect();
@@ -497,21 +679,65 @@
       currentUser = data.user;
       allUsers = data.users;
       allRooms = data.rooms;
-      renderConversations();
+      updateRequestsBadge();
+      renderSidebarContent();
 
-      // Automatically select default conversation (group or first other user)
-      if (!currentTarget) {
-        if (allRooms.length > 0) {
-          selectTarget({
-            id: allRooms[0].id,
-            name: allRooms[0].name,
-            avatar: allRooms[0].avatar,
-            isGroup: true,
-            status: 'Nhóm công khai',
-            bio: allRooms[0].description
-          });
-        }
+      if (!currentTarget && allRooms.length > 0) {
+        selectTarget({
+          id: allRooms[0].id,
+          name: allRooms[0].name,
+          avatar: allRooms[0].avatar,
+          isGroup: true,
+          status: 'Nhóm công khai',
+          bio: allRooms[0].description
+        });
       }
+    });
+
+    socket.on('users:list_updated', (updatedUsers) => {
+      allUsers = updatedUsers;
+      const me = allUsers.find(u => u.id === currentUser.id);
+      if (me) currentUser = me;
+      updateRequestsBadge();
+      renderSidebarContent();
+    });
+
+    // Real-time friend request received
+    socket.on('friend:request_received', ({ fromUser }) => {
+      if (!currentUser.friendRequestsReceived) currentUser.friendRequestsReceived = [];
+      if (!currentUser.friendRequestsReceived.includes(fromUser.id)) {
+        currentUser.friendRequestsReceived.push(fromUser.id);
+      }
+      playNotificationDing();
+      updateRequestsBadge();
+      renderSidebarContent();
+    });
+
+    // Real-time friend request accepted
+    socket.on('friend:request_accepted', ({ friendUser }) => {
+      if (!currentUser.friends) currentUser.friends = [];
+      if (!currentUser.friends.includes(friendUser.id)) {
+        currentUser.friends.push(friendUser.id);
+      }
+      currentUser.friendRequestsReceived = (currentUser.friendRequestsReceived || []).filter(id => id !== friendUser.id);
+      currentUser.friendRequestsSent = (currentUser.friendRequestsSent || []).filter(id => id !== friendUser.id);
+      playNotificationDing();
+      updateRequestsBadge();
+      renderSidebarContent();
+    });
+
+    socket.on('friend:request_sent_success', ({ targetUserId }) => {
+      if (!currentUser.friendRequestsSent) currentUser.friendRequestsSent = [];
+      if (!currentUser.friendRequestsSent.includes(targetUserId)) {
+        currentUser.friendRequestsSent.push(targetUserId);
+      }
+      renderSidebarContent();
+    });
+
+    socket.on('friend:request_declined', ({ targetUserId }) => {
+      currentUser.friendRequestsReceived = (currentUser.friendRequestsReceived || []).filter(id => id !== targetUserId);
+      updateRequestsBadge();
+      renderSidebarContent();
     });
 
     // User online status change
@@ -520,14 +746,13 @@
       if (u) {
         u.status = status;
         u.lastSeen = lastSeen;
-        renderConversations();
+        renderSidebarContent();
         if (currentTarget && currentTarget.id === userId && !currentTarget.isGroup) {
           updateHeaderStatus(status === 'online');
         }
       }
     });
 
-    // Chat History received
     socket.on('chat:history', ({ targetId, isGroup, messages }) => {
       if (currentTarget && currentTarget.id === targetId) {
         activeMessages = messages || [];
@@ -536,9 +761,7 @@
       }
     });
 
-    // Incoming New Message
     socket.on('message:new', (msg) => {
-      // Check if message belongs to current open chat
       const isForCurrentChat = currentTarget && (
         (currentTarget.isGroup && msg.targetId === currentTarget.id) ||
         (!currentTarget.isGroup && (
@@ -554,16 +777,13 @@
         renderSharedMedia();
       }
 
-      // Play pleasant sound if incoming from someone else
       if (msg.senderId !== currentUser.id) {
         playNotificationDing();
       }
 
-      // Update conversations preview
-      renderConversations();
+      renderSidebarContent();
     });
 
-    // Typing display
     socket.on('typing:display', ({ senderId, senderName, targetId, isGroup }) => {
       const isRelevant = currentTarget && (
         (isGroup && currentTarget.id === targetId) ||
@@ -588,8 +808,7 @@
       }
     });
 
-    // Reaction updated
-    socket.on('message:reaction_updated', ({ messageId, reactions, targetId, isGroup }) => {
+    socket.on('message:reaction_updated', ({ messageId, reactions }) => {
       const msg = activeMessages.find(m => m.id === messageId);
       if (msg) {
         msg.reactions = reactions;
@@ -597,7 +816,6 @@
       }
     });
 
-    // Message recalled
     socket.on('message:recalled', ({ messageId }) => {
       const msg = activeMessages.find(m => m.id === messageId);
       if (msg) {
@@ -611,117 +829,176 @@
     });
   }
 
-  // Conversations List Rendering
-  function renderConversations() {
+  function updateRequestsBadge() {
+    const count = (currentUser.friendRequestsReceived || []).length;
+    if (count > 0) {
+      requestsBadge.textContent = count;
+      requestsBadge.style.display = 'inline-block';
+    } else {
+      requestsBadge.style.display = 'none';
+    }
+  }
+
+  // Sidebar Content Rendering based on Active Nav Tab
+  function renderSidebarContent() {
     convListContainer.innerHTML = '';
     const query = convSearchInput.value.toLowerCase().trim();
 
-    // 1. Group rooms
-    if (currentFilter === 'all' || currentFilter === 'group') {
+    // 1. MESSAGES TAB: All conversations + General room
+    if (currentSidebarTab === 'messages') {
+      // Group room first
       allRooms.forEach(room => {
         if (query && !room.name.toLowerCase().includes(query)) return;
+        renderConversationItem(room.id, room.name, room.avatar, true, 'Phòng chung mọi người', 'Nhóm công khai');
+      });
 
-        const item = document.createElement('div');
-        item.className = `conversation-item ${currentTarget && currentTarget.id === room.id ? 'active' : ''}`;
-        item.innerHTML = `
-          <div class="avatar-wrapper">
-            <img src="${room.avatar}" alt="${room.name}" class="avatar">
-          </div>
-          <div class="conversation-meta">
-            <div class="conv-top">
-              <span class="conv-name">${escapeHTML(room.name)}</span>
-            </div>
-            <div class="conv-bottom">
-              <span class="conv-last-msg">Phòng chung mọi người</span>
-            </div>
-          </div>
-        `;
-        item.addEventListener('click', () => {
-          selectTarget({
-            id: room.id,
-            name: room.name,
-            avatar: room.avatar,
-            isGroup: true,
-            status: 'Nhóm công khai',
-            bio: room.description
-          });
-          if (window.innerWidth <= 680) {
-            sidebarLeft.classList.add('hidden-mobile');
-          }
-        });
-        convListContainer.appendChild(item);
+      // Direct chats with other users
+      const otherUsers = allUsers.filter(u => u.id !== currentUser.id);
+      otherUsers.forEach(u => {
+        if (query && !u.name.toLowerCase().includes(query) && !(u.phone && u.phone.includes(query))) return;
+        const isOnline = u.status === 'online';
+        renderConversationItem(u.id, u.name, u.avatar, false, u.bio || `📞 ${u.phone || ''}`, isOnline ? 'Online' : 'Vừa xong', isOnline, u.phone);
       });
     }
 
-    // 2. Direct users (exclude current user)
-    if (currentFilter === 'all' || currentFilter === 'direct') {
-      const otherUsers = allUsers.filter(u => u.id !== currentUser.id);
+    // 2. CONTACTS (FRIENDS) TAB: Only connected friends
+    else if (currentSidebarTab === 'friends') {
+      const friendIds = currentUser.friends || [];
+      const friends = allUsers.filter(u => friendIds.includes(u.id) && u.id !== currentUser.id);
 
-      otherUsers.forEach(u => {
-        if (query && !u.name.toLowerCase().includes(query)) return;
-
-        const isOnline = u.status === 'online';
-        const item = document.createElement('div');
-        item.className = `conversation-item ${currentTarget && currentTarget.id === u.id ? 'active' : ''}`;
-        item.innerHTML = `
-          <div class="avatar-wrapper">
-            <img src="${u.avatar}" alt="${u.name}" class="avatar">
-            <span class="status-indicator ${isOnline ? 'online' : ''}"></span>
-          </div>
-          <div class="conversation-meta">
-            <div class="conv-top">
-              <span class="conv-name">${escapeHTML(u.name)}</span>
-              <span class="conv-time">${isOnline ? 'Online' : 'Vừa xong'}</span>
-            </div>
-            <div class="conv-bottom">
-              <span class="conv-last-msg">${escapeHTML(u.bio || 'Chạm để nhắn tin...')}</span>
-            </div>
+      if (friends.length === 0) {
+        convListContainer.innerHTML = `
+          <div class="empty-contacts-state">
+            <p>Bạn chưa có bạn bè nào.</p>
+            <button class="primary-btn" id="btn-add-friend-empty">+ Tìm Bạn Bằng Số Điện Thoại</button>
           </div>
         `;
-        item.addEventListener('click', () => {
-          selectTarget({
-            id: u.id,
-            name: u.name,
-            avatar: u.avatar,
-            isGroup: false,
-            status: isOnline ? 'Đang hoạt động' : 'Ngoại tuyến',
-            bio: u.bio
+        const btnEmpty = document.getElementById('btn-add-friend-empty');
+        if (btnEmpty) {
+          btnEmpty.addEventListener('click', () => {
+            addFriendModal.style.display = 'flex';
           });
-          if (window.innerWidth <= 680) {
-            sidebarLeft.classList.add('hidden-mobile');
-          }
+        }
+        return;
+      }
+
+      convListContainer.innerHTML = `<div class="contacts-section-title">Bạn bè (${friends.length})</div>`;
+
+      friends.forEach(u => {
+        if (query && !u.name.toLowerCase().includes(query) && !(u.phone && u.phone.includes(query))) return;
+        const isOnline = u.status === 'online';
+        renderConversationItem(u.id, u.name, u.avatar, false, `📞 ${u.phone || ''} • ${u.tag || ''}`, isOnline ? 'Online' : 'Vừa xong', isOnline, u.phone);
+      });
+    }
+
+    // 3. REQUESTS TAB: Pending friend requests received
+    else if (currentSidebarTab === 'requests') {
+      const requestIds = currentUser.friendRequestsReceived || [];
+      const requesters = allUsers.filter(u => requestIds.includes(u.id));
+
+      if (requesters.length === 0) {
+        convListContainer.innerHTML = `
+          <div class="empty-contacts-state">
+            <p>Không có lời mời kết bạn nào đang chờ.</p>
+          </div>
+        `;
+        return;
+      }
+
+      convListContainer.innerHTML = `<div class="contacts-section-title">Lời mời kết bạn (${requesters.length})</div>`;
+
+      requesters.forEach(u => {
+        const item = document.createElement('div');
+        item.className = 'friend-request-card';
+        item.innerHTML = `
+          <div class="req-user-meta">
+            <img src="${u.avatar}" alt="${u.name}">
+            <div class="req-info">
+              <span class="req-name">${escapeHTML(u.name)}</span>
+              <span class="req-phone">📞 ${escapeHTML(u.phone || '')}</span>
+            </div>
+          </div>
+          <div class="req-actions">
+            <button class="btn-accept-req" data-id="${u.id}">Đồng ý</button>
+            <button class="btn-decline-req" data-id="${u.id}">Xóa</button>
+          </div>
+        `;
+
+        item.querySelector('.btn-accept-req').addEventListener('click', () => {
+          socket.emit('friend:accept_request', { targetUserId: u.id });
         });
+
+        item.querySelector('.btn-decline-req').addEventListener('click', () => {
+          socket.emit('friend:decline_request', { targetUserId: u.id });
+        });
+
         convListContainer.appendChild(item);
       });
     }
   }
 
-  // Select Active Target
+  function renderConversationItem(id, name, avatar, isGroup, subtext, statusText, isOnline = false, phone = null) {
+    const item = document.createElement('div');
+    item.className = `conversation-item ${currentTarget && currentTarget.id === id ? 'active' : ''}`;
+    item.innerHTML = `
+      <div class="avatar-wrapper">
+        <img src="${avatar}" alt="${name}" class="avatar">
+        ${!isGroup ? `<span class="status-indicator ${isOnline ? 'online' : ''}"></span>` : ''}
+      </div>
+      <div class="conversation-meta">
+        <div class="conv-top">
+          <span class="conv-name">${escapeHTML(name)}</span>
+          <span class="conv-time">${escapeHTML(statusText)}</span>
+        </div>
+        <div class="conv-bottom">
+          <span class="conv-last-msg">${escapeHTML(subtext)}</span>
+        </div>
+      </div>
+    `;
+
+    item.addEventListener('click', () => {
+      selectTarget({
+        id,
+        name,
+        avatar,
+        phone,
+        isGroup,
+        status: isGroup ? 'Nhóm công khai' : (isOnline ? 'Đang hoạt động' : 'Ngoại tuyến'),
+        bio: subtext
+      });
+      if (window.innerWidth <= 680) {
+        sidebarLeft.classList.add('hidden-mobile');
+      }
+    });
+
+    convListContainer.appendChild(item);
+  }
+
   function selectTarget(target) {
     currentTarget = target;
     activeMessages = [];
     messagesStream.innerHTML = '';
     typingBubble.style.display = 'none';
 
-    // Update Header
+    // Header
     chatTargetAvatar.src = target.avatar;
     chatTargetName.textContent = target.name;
     updateHeaderStatus(target.status === 'Đang hoạt động' || target.isGroup);
 
-    // Update Right Sidebar
+    // Sidebar Right
     infoAvatar.src = target.avatar;
     infoName.textContent = target.name;
+    infoPhone.textContent = target.phone ? `📞 ${target.phone}` : '';
     infoBio.textContent = target.bio || '';
     infoChatType.textContent = target.isGroup ? 'Nhóm chung' : 'Trò chuyện 1-1';
     infoOnlineStatus.textContent = target.status;
 
-    // Request Chat History from Server
     socket.emit('chat:get_history', {
       targetId: target.id,
       isGroup: target.isGroup
     });
 
-    renderConversations();
+    renderSidebarContent();
     messageInput.focus();
   }
 
@@ -741,7 +1018,6 @@
     }
   }
 
-  // Render All Messages
   function renderMessages() {
     messagesStream.innerHTML = '';
     let lastDate = null;
@@ -761,7 +1037,6 @@
     scrollToBottom();
   }
 
-  // Append a Single Message Element
   function appendMessageElement(msg) {
     const isOutgoing = msg.senderId === currentUser.id;
     const row = document.createElement('div');
@@ -786,7 +1061,6 @@
 
     const timeFormatted = formatTimestamp(msg.timestamp);
 
-    // Build Action Bar (Reactions + Reply + Recall)
     let actionButtonsHtml = `
       <button class="action-bar-btn" data-reaction="❤️" title="Yêu thích">❤️</button>
       <button class="action-bar-btn" data-reaction="👍" title="Thích">👍</button>
@@ -814,7 +1088,6 @@
           ${isOutgoing ? `<span class="check-icon" title="Đã gửi">✓✓</span>` : ''}
         </div>
         <div class="message-reactions" id="reactions-${msg.id}">
-          <!-- Reaction pills injected here -->
         </div>
         ${!msg.recalled ? `
           <div class="message-action-bar">
@@ -824,7 +1097,6 @@
       </div>
     `;
 
-    // Click on image to view in lightbox
     const imgEl = row.querySelector('.message-image');
     if (imgEl) {
       imgEl.addEventListener('click', () => {
@@ -833,7 +1105,6 @@
       });
     }
 
-    // Reaction buttons trigger
     const reactionBtns = row.querySelectorAll('[data-reaction]');
     reactionBtns.forEach(btn => {
       btn.addEventListener('click', (e) => {
@@ -843,7 +1114,6 @@
       });
     });
 
-    // Reply button trigger
     const replyBtn = row.querySelector('.btn-reply-msg');
     if (replyBtn) {
       replyBtn.addEventListener('click', (e) => {
@@ -852,7 +1122,6 @@
       });
     }
 
-    // Recall button trigger
     const recallBtn = row.querySelector('.btn-recall-msg');
     if (recallBtn) {
       recallBtn.addEventListener('click', (e) => {
@@ -867,7 +1136,6 @@
     updateMessageReactions(msg.id, msg.reactions);
   }
 
-  // Update Reaction Pills on a message
   function updateMessageReactions(messageId, reactions) {
     const container = document.getElementById(`reactions-${messageId}`);
     if (!container) return;
@@ -889,7 +1157,6 @@
     });
   }
 
-  // Set Reply Target
   function setReplyMessage(msg) {
     replyingTo = msg;
     replyToUser.textContent = msg.senderName;
@@ -898,7 +1165,6 @@
     messageInput.focus();
   }
 
-  // Render Shared Media in right sidebar
   function renderSharedMedia() {
     sharedMediaGrid.innerHTML = '';
     const images = activeMessages.filter(m => m.imageUrl && !m.recalled);
@@ -921,7 +1187,6 @@
     });
   }
 
-  // Send Message Handler
   async function handleSendMessage() {
     if (!currentTarget || !socket) return;
 
@@ -930,7 +1195,6 @@
 
     let uploadedImageUrl = null;
 
-    // If an image is pending, upload it to the server first
     if (pendingImageFile) {
       const formData = new FormData();
       formData.append('file', pendingImageFile);
@@ -943,13 +1207,11 @@
         const uploadData = await uploadRes.json();
         uploadedImageUrl = uploadData.url;
       } catch (err) {
-        console.error('Lỗi khi tải ảnh:', err);
         alert('Tải ảnh thất bại, vui lòng thử lại!');
         return;
       }
     }
 
-    // Build payload
     const payload = {
       targetId: currentTarget.id,
       isGroup: currentTarget.isGroup,
@@ -964,22 +1226,18 @@
 
     socket.emit('message:send', payload);
 
-    // Reset input fields
     messageInput.value = '';
     adjustTextareaHeight(messageInput);
     stopTyping();
 
-    // Reset image preview
     pendingImageFile = null;
     fileInput.value = '';
     imageUploadPreview.style.display = 'none';
 
-    // Reset reply preview
     replyingTo = null;
     replyPreviewBar.style.display = 'none';
   }
 
-  // Typing Input Handling
   function handleTypingInput() {
     if (!currentTarget || !socket) return;
 
@@ -1009,14 +1267,12 @@
     }
   }
 
-  // Scroll messages to bottom smoothly
   function scrollToBottom() {
     setTimeout(() => {
       messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }, 50);
   }
 
-  // Simulated Voice / Video Call
   function startSimulatedCall(type) {
     if (!currentTarget) return;
     callAvatar.src = currentTarget.avatar;
@@ -1024,7 +1280,6 @@
     callStatusLabel.textContent = `Đang gọi ${type === 'video' ? 'video' : 'thoại'}...`;
     callModal.style.display = 'flex';
 
-    // Ringtone loop
     playRingTone();
     callAudioInterval = setInterval(playRingTone, 3000);
   }
@@ -1037,6 +1292,5 @@
     }
   }
 
-  // Start app on load
   window.addEventListener('DOMContentLoaded', initApp);
 })();

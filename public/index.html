@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ZaloChat Web - Ứng dụng nhắn tin thời gian thực</title>
-  <meta name="description" content="Nền tảng nhắn tin trực tuyến thời gian thực hiện đại, nhanh chóng và mượt mà tương tự Zalo & Messenger với đầy đủ tính năng chat, gửi ảnh, thả cảm xúc.">
+  <title>ZaloChat Web - Ứng dụng nhắn tin & kết bạn thời gian thực</title>
+  <meta name="description" content="Nền tảng nhắn tin trực tuyến thời gian thực hiện đại, tìm kiếm kết bạn qua số điện thoại và tên đăng nhập tương tự Zalo & Messenger.">
   
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -26,17 +26,21 @@
     <aside class="sidebar-left">
       <!-- User Profile Header -->
       <div class="sidebar-header">
-        <div class="my-profile" id="btn-my-profile" title="Xem thông tin cá nhân">
+        <div class="my-profile" id="btn-my-profile" title="Xem thông tin cá nhân & Đăng xuất">
           <div class="avatar-wrapper">
             <img id="my-avatar" src="" alt="My Avatar" class="avatar">
             <span class="status-indicator online"></span>
           </div>
           <div class="user-info">
             <h2 id="my-name" class="user-name">Đang tải...</h2>
-            <span id="my-status-text" class="status-badge">Trực tuyến</span>
+            <span id="my-phone-tag" class="user-subtag">...</span>
           </div>
         </div>
+        
         <div class="header-actions">
+          <button id="btn-open-add-friend" class="icon-btn highlight-btn" title="Tìm bạn bằng Số điện thoại & Kết bạn">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+          </button>
           <button id="btn-theme-toggle" class="icon-btn" title="Chuyển chế độ Sáng / Tối">
             <svg class="sun-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
             <svg class="moon-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
@@ -45,8 +49,8 @@
             <svg class="sound-on-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
             <svg class="sound-off-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
           </button>
-          <button id="btn-switch-user" class="icon-btn" title="Đổi tài khoản khác để test chat">
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><polyline points="17 11 19 13 23 9"/></svg>
+          <button id="btn-logout" class="icon-btn" title="Đăng xuất / Chuyển tài khoản">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
           </button>
         </div>
       </div>
@@ -55,18 +59,25 @@
       <div class="search-box-wrapper">
         <div class="search-box">
           <svg class="search-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input type="text" id="conversation-search" placeholder="Tìm kiếm tin nhắn, bạn bè..." autocomplete="off">
+          <input type="text" id="conversation-search" placeholder="Tìm theo tên hoặc số điện thoại..." autocomplete="off">
         </div>
       </div>
 
-      <!-- Filter Tabs -->
-      <div class="conversation-filter-tabs">
-        <button class="filter-tab active" data-filter="all">Tất cả</button>
-        <button class="filter-tab" data-filter="direct">Cá nhân</button>
-        <button class="filter-tab" data-filter="group">Nhóm</button>
+      <!-- Navigation & Filter Tabs -->
+      <div class="sidebar-nav-tabs">
+        <button class="nav-tab active" data-tab="messages">
+          💬 Tin nhắn
+        </button>
+        <button class="nav-tab" data-tab="friends">
+          👥 Danh bạ
+        </button>
+        <button class="nav-tab" data-tab="requests">
+          🔔 Lời mời
+          <span class="tab-badge" id="requests-badge" style="display: none;">0</span>
+        </button>
       </div>
 
-      <!-- Conversations List -->
+      <!-- Main Sidebar Scroll Content -->
       <div class="conversations-scroll" id="conversations-list">
         <!-- Rendered dynamically via JS -->
       </div>
@@ -191,6 +202,7 @@
         <div class="info-profile-card">
           <img id="info-avatar" src="" alt="Info Avatar" class="big-avatar">
           <h2 id="info-name" class="info-name">Tên</h2>
+          <p id="info-phone" class="info-phone-text">📞 0988111222</p>
           <p id="info-bio" class="info-bio">Tiểu sử</p>
         </div>
 
@@ -216,29 +228,89 @@
 
   </div>
 
-  <!-- LOGIN / SWITCH USER MODAL -->
-  <div class="modal-overlay" id="user-select-modal">
+  <!-- MODAL: ADD FRIEND BY PHONE / USERNAME -->
+  <div class="modal-overlay" id="add-friend-modal" style="display: none;">
     <div class="modal-card">
-      <div class="modal-brand">
-        <div class="brand-icon">💬</div>
-        <h2>Chào mừng bạn đến với ZaloChat!</h2>
-        <p>Chọn một tài khoản để đăng nhập hoặc mở tab mới để chat qua lại giữa 2 tài khoản:</p>
+      <div class="modal-header-row">
+        <h3>🔍 Tìm Bạn & Kết Bạn</h3>
+        <button class="icon-btn" id="btn-close-add-friend">✕</button>
       </div>
+      <p class="modal-desc">Nhập Số điện thoại (vd: 0988111222) hoặc Tên đăng nhập để tìm và kết bạn trò chuyện:</p>
 
-      <div class="account-selection-grid" id="account-selection-grid">
-        <!-- Preset users injected here -->
-      </div>
-
-      <div class="custom-login-divider">
-        <span>Hoặc tạo tên người dùng của riêng bạn</span>
-      </div>
-
-      <form id="custom-user-form" class="custom-user-form">
-        <div class="custom-input-group">
-          <input type="text" id="custom-user-name" placeholder="Nhập tên của bạn (vd: Hoàng Nam, Thu Trang...)" required maxlength="30">
-          <button type="submit" class="primary-btn">Vào Chat Ngay</button>
+      <form id="search-friend-form" class="search-friend-form">
+        <div class="search-input-group">
+          <input type="text" id="search-friend-query" placeholder="Nhập số điện thoại hoặc @tên..." required>
+          <button type="submit" class="primary-btn">Tìm Kiếm</button>
         </div>
       </form>
+
+      <div class="search-results-area" id="search-results-area">
+        <!-- Rendered search result cards -->
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: AUTHENTICATION (LOGIN / REGISTER / QUICK DEMO) -->
+  <div class="modal-overlay" id="user-select-modal">
+    <div class="modal-card auth-card">
+      <div class="modal-brand">
+        <div class="brand-icon">💬</div>
+        <h2>ZaloChat</h2>
+        <p>Kết nối và trò chuyện thời gian thực siêu tốc</p>
+      </div>
+
+      <!-- Auth Tabs -->
+      <div class="auth-tabs">
+        <button class="auth-tab-btn active" data-auth="login">Đăng Nhập</button>
+        <button class="auth-tab-btn" data-auth="register">Đăng Ký</button>
+        <button class="auth-tab-btn" data-auth="demo">Dùng Thử Nhanh</button>
+      </div>
+
+      <!-- Error Alert Box -->
+      <div class="auth-error-alert" id="auth-error-alert" style="display: none;"></div>
+
+      <!-- FORM 1: LOGIN -->
+      <form id="auth-login-form" class="auth-form-panel">
+        <div class="form-group">
+          <label for="login-account">Số điện thoại hoặc Tên đăng nhập</label>
+          <input type="text" id="login-account" placeholder="Vd: 0988111222 hoặc minhquan" required>
+        </div>
+        <div class="form-group">
+          <label for="login-password">Mật khẩu</label>
+          <input type="password" id="login-password" placeholder="Nhập mật khẩu..." required>
+        </div>
+        <button type="submit" class="primary-btn w-100">Đăng Nhập</button>
+      </form>
+
+      <!-- FORM 2: REGISTER -->
+      <form id="auth-register-form" class="auth-form-panel" style="display: none;">
+        <div class="form-group">
+          <label for="reg-name">Họ và tên hiển thị</label>
+          <input type="text" id="reg-name" placeholder="Vd: Kiệt Phan" required maxlength="35">
+        </div>
+        <div class="form-group">
+          <label for="reg-phone">Số điện thoại (dùng để tìm kiếm kết bạn)</label>
+          <input type="tel" id="reg-phone" placeholder="Vd: 0901234567" required pattern="[0-9]{9,11}">
+        </div>
+        <div class="form-group">
+          <label for="reg-username">Tên đăng nhập (viết liền không dấu)</label>
+          <input type="text" id="reg-username" placeholder="Vd: kietphan" required maxlength="25">
+        </div>
+        <div class="form-group">
+          <label for="reg-password">Mật khẩu</label>
+          <input type="password" id="reg-password" placeholder="Tối thiểu 3 ký tự" required minlength="3">
+        </div>
+        <button type="submit" class="primary-btn w-100">Tạo Tài Khoản & Vào Chat</button>
+      </form>
+
+      <!-- TAB 3: DEMO QUICK ACCOUNTS -->
+      <div id="auth-demo-panel" class="auth-form-panel" style="display: none;">
+        <p class="demo-subtext">Hoặc bấm chọn nhanh 1 tài khoản mẫu để mở nhiều tab chat thử:</p>
+        <div class="account-selection-grid" id="account-selection-grid">
+          <!-- Preset users injected here -->
+        </div>
+      </div>
+
     </div>
   </div>
 

@@ -7,7 +7,15 @@
       "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
       "bio": "Lập trình viên • Thích công nghệ & Cà phê ☕",
       "status": "offline",
-      "lastSeen": "2026-10-17T07:39:14.232Z"
+      "lastSeen": "2026-10-17T07:39:14.232Z",
+      "username": "minhquan",
+      "phone": "0988111222",
+      "password": "123",
+      "friends": [
+        "user_1792224901328_512"
+      ],
+      "friendRequestsReceived": [],
+      "friendRequestsSent": []
     },
     {
       "id": "user_linh",
@@ -16,7 +24,15 @@
       "avatar": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80",
       "bio": "UI/UX Designer • Yêu âm nhạc & Du lịch 🎧✈️",
       "status": "offline",
-      "lastSeen": "2026-10-17T06:32:26.241Z"
+      "lastSeen": "2026-10-17T06:32:26.241Z",
+      "username": "halinh",
+      "phone": "0977333444",
+      "password": "123",
+      "friends": [
+        "user_1792224901328_512"
+      ],
+      "friendRequestsReceived": [],
+      "friendRequestsSent": []
     },
     {
       "id": "user_tuan",
@@ -25,7 +41,13 @@
       "avatar": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80",
       "bio": "Photographer & Gamer 🎮📷",
       "status": "offline",
-      "lastSeen": "2026-10-17T06:32:26.241Z"
+      "lastSeen": "2026-10-17T06:32:26.241Z",
+      "username": "tuananh",
+      "phone": "0966555666",
+      "password": "123",
+      "friends": [],
+      "friendRequestsReceived": [],
+      "friendRequestsSent": []
     },
     {
       "id": "user_ngoc",
@@ -34,7 +56,31 @@
       "avatar": "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&auto=format&fit=crop&q=80",
       "bio": "Content Creator • Yêu mèo 🐱✨",
       "status": "offline",
-      "lastSeen": "2026-10-17T06:32:26.241Z"
+      "lastSeen": "2026-10-17T06:32:26.241Z",
+      "username": "baongoc",
+      "phone": "0955777888",
+      "password": "123",
+      "friends": [],
+      "friendRequestsReceived": [],
+      "friendRequestsSent": []
+    },
+    {
+      "id": "user_1792224901328_512",
+      "name": "Kiet Phan",
+      "tag": "@kietphan",
+      "username": "kietphan",
+      "phone": "0909999888",
+      "password": "123",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=kietphan",
+      "bio": "Chào bạn, tôi vừa tham gia ZaloChat!",
+      "friends": [
+        "user_quan",
+        "user_linh"
+      ],
+      "friendRequestsReceived": [],
+      "friendRequestsSent": [],
+      "status": "offline",
+      "lastSeen": "2026-10-17T08:15:01.328Z"
     }
   ],
   "rooms": [
