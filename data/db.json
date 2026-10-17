@@ -16,14 +16,6 @@
       "lastSeen": "2026-10-17T08:15:01.328Z"
     }
   ],
-  "rooms": [
-    {
-      "id": "room_general",
-      "name": "🌟 Hội Bạn Thân (Chém gió)",
-      "avatar": "https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=150&auto=format&fit=crop&q=80",
-      "description": "Nhóm trò chuyện công khai cho mọi người",
-      "isGroup": true
-    }
-  ],
+  "rooms": [],
   "messages": []
 }

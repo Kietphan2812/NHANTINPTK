@@ -1,6 +1,6 @@
 /**
  * ZaloChat Frontend Application
- * Real-time messaging, Phone & Username Registration, Login, Instant Add Friend, and Contacts
+ * Real-time messaging, Real WebRTC Audio & Video Calling, Pin Messages, Group Management, and Unfriend
  */
 
 (() => {
@@ -12,11 +12,9 @@
   const authRegisterForm = document.getElementById('auth-register-form');
   const authErrorAlert = document.getElementById('auth-error-alert');
 
-  // Login inputs
+  // Login & Register inputs
   const loginAccountInput = document.getElementById('login-account');
   const loginPasswordInput = document.getElementById('login-password');
-
-  // Register inputs
   const regNameInput = document.getElementById('reg-name');
   const regPhoneInput = document.getElementById('reg-phone');
   const regUsernameInput = document.getElementById('reg-username');
@@ -26,6 +24,7 @@
   const myAvatar = document.getElementById('my-avatar');
   const myName = document.getElementById('my-name');
   const myPhoneTag = document.getElementById('my-phone-tag');
+  const btnOpenCreateGroup = document.getElementById('btn-open-create-group');
   const btnOpenAddFriend = document.getElementById('btn-open-add-friend');
   const btnThemeToggle = document.getElementById('btn-theme-toggle');
   const btnSoundToggle = document.getElementById('btn-sound-toggle');
@@ -35,12 +34,18 @@
   const convListContainer = document.getElementById('conversations-list');
   const sidebarLeft = document.querySelector('.sidebar-left');
 
-  // Add Friend Modal
+  // Modals
   const addFriendModal = document.getElementById('add-friend-modal');
   const btnCloseAddFriend = document.getElementById('btn-close-add-friend');
   const searchFriendForm = document.getElementById('search-friend-form');
   const searchFriendQuery = document.getElementById('search-friend-query');
   const searchResultsArea = document.getElementById('search-results-area');
+
+  const createGroupModal = document.getElementById('create-group-modal');
+  const btnCloseCreateGroup = document.getElementById('btn-close-create-group');
+  const createGroupForm = document.getElementById('create-group-form');
+  const groupNameInput = document.getElementById('group-name-input');
+  const friendsSelectionList = document.getElementById('friends-selection-list');
 
   // Chat main elements
   const btnMobileBack = document.getElementById('btn-mobile-back');
@@ -52,12 +57,17 @@
   const btnVideoCall = document.getElementById('btn-video-call');
   const btnToggleInfo = document.getElementById('btn-toggle-info');
 
+  // Pinned Message Banner
+  const pinnedBanner = document.getElementById('pinned-banner');
+  const pinnedSnippet = document.getElementById('pinned-snippet');
+  const btnUnpinMsg = document.getElementById('btn-unpin-msg');
+
   const messagesContainer = document.getElementById('messages-container');
   const messagesStream = document.getElementById('messages-stream');
   const typingBubble = document.getElementById('typing-bubble');
   const typingName = document.getElementById('typing-name');
 
-  // Reply & Image preview elements
+  // Reply & Image preview
   const replyPreviewBar = document.getElementById('reply-preview-bar');
   const replyToUser = document.getElementById('reply-to-user');
   const replySnippet = document.getElementById('reply-snippet');
@@ -68,7 +78,7 @@
   const previewFilename = document.getElementById('preview-filename');
   const btnRemovePreviewImage = document.getElementById('btn-remove-preview-image');
 
-  // Chat input elements
+  // Chat input
   const fileInput = document.getElementById('file-input');
   const btnAttachImage = document.getElementById('btn-attach-image');
   const messageInput = document.getElementById('message-input');
@@ -79,7 +89,7 @@
   const emojiGrid = document.getElementById('emoji-grid');
   const emojiTabs = document.querySelectorAll('.emoji-tab');
 
-  // Right sidebar
+  // Right sidebar & Danger actions
   const sidebarRight = document.getElementById('sidebar-right');
   const btnCloseRightSidebar = document.getElementById('btn-close-right-sidebar');
   const infoAvatar = document.getElementById('info-avatar');
@@ -89,17 +99,34 @@
   const infoChatType = document.getElementById('info-chat-type');
   const infoOnlineStatus = document.getElementById('info-online-status');
   const sharedMediaGrid = document.getElementById('shared-media-grid');
+  const btnUnfriend = document.getElementById('btn-unfriend');
+  const btnDeleteGroup = document.getElementById('btn-delete-group');
 
-  // Lightbox & Call modals
+  // Lightbox
   const lightboxModal = document.getElementById('lightbox-modal');
   const lightboxImg = document.getElementById('lightbox-img');
   const lightboxClose = document.getElementById('lightbox-close');
 
+  // Real WebRTC Calling Modals & Elements
   const callModal = document.getElementById('call-modal');
+  const videoGrid = document.getElementById('video-grid');
+  const remoteVideo = document.getElementById('remote-video');
+  const localVideo = document.getElementById('local-video');
+  const callAvatarContainer = document.getElementById('call-avatar-container');
   const callAvatar = document.getElementById('call-avatar');
   const callUserName = document.getElementById('call-user-name');
   const callStatusLabel = document.getElementById('call-status-label');
+  const callTimerLabel = document.getElementById('call-timer-label');
+  const btnToggleMic = document.getElementById('btn-toggle-mic');
+  const btnToggleCam = document.getElementById('btn-toggle-cam');
   const btnHangupCall = document.getElementById('btn-hangup-call');
+
+  const incomingCallModal = document.getElementById('incoming-call-modal');
+  const incomingCallAvatar = document.getElementById('incoming-call-avatar');
+  const incomingCallName = document.getElementById('incoming-call-name');
+  const incomingCallType = document.getElementById('incoming-call-type');
+  const btnAnswerCall = document.getElementById('btn-answer-call');
+  const btnRejectCall = document.getElementById('btn-reject-call');
 
   // Application State
   let socket = null;
@@ -108,17 +135,35 @@
   let allRooms = [];
   let currentTarget = null;
   let activeMessages = [];
-  let unreadCounts = {}; // targetId -> count
-  let lastMessageMap = {}; // targetId -> { text, timestamp }
+  let currentPinnedMessage = null;
+  let unreadCounts = {};
+  let lastMessageMap = {};
   let replyingTo = null;
   let pendingImageFile = null;
   let typingTimer = null;
   let isTyping = false;
   let currentSidebarTab = 'messages'; // 'messages' | 'friends'
   let isSoundEnabled = localStorage.getItem('zalochat_sound') !== 'false';
-  let callAudioInterval = null;
 
-  // Web Audio Context for crisp sound notifications
+  // WebRTC Call State
+  let peerConnection = null;
+  let localStream = null;
+  let remoteStream = null;
+  let activeCallPartner = null;
+  let isCallVideo = false;
+  let callTimerInterval = null;
+  let callSeconds = 0;
+  let incomingCallData = null;
+  let ringtoneInterval = null;
+
+  const rtcConfig = {
+    iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' }
+    ]
+  };
+
+  // Web Audio Context for notification sounds
   let audioCtx = null;
   function getAudioContext() {
     if (!audioCtx) {
@@ -141,10 +186,8 @@
 
       osc1.type = 'sine';
       osc2.type = 'sine';
-
       osc1.frequency.setValueAtTime(880, now);
       osc1.frequency.exponentialRampToValueAtTime(1320, now + 0.08);
-
       osc2.frequency.setValueAtTime(1760, now + 0.05);
 
       gain.gain.setValueAtTime(0.25, now);
@@ -170,8 +213,7 @@
 
       osc1.frequency.value = 440;
       osc2.frequency.value = 480;
-
-      gain.gain.setValueAtTime(0.15, ctx.currentTime);
+      gain.gain.setValueAtTime(0.18, ctx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 1.2);
 
       osc1.connect(gain);
@@ -259,7 +301,6 @@
     authErrorAlert.textContent = '';
   }
 
-  // Theme Management
   function initTheme() {
     const savedTheme = localStorage.getItem('zalochat_theme') || 'dark';
     document.documentElement.setAttribute('data-theme', savedTheme);
@@ -429,6 +470,30 @@
       }
     });
 
+    // Create Group Modal
+    btnOpenCreateGroup.addEventListener('click', () => {
+      openCreateGroupModal();
+    });
+    btnCloseCreateGroup.addEventListener('click', () => {
+      createGroupModal.style.display = 'none';
+    });
+    createGroupModal.addEventListener('click', (e) => {
+      if (e.target === createGroupModal) createGroupModal.style.display = 'none';
+    });
+
+    createGroupForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const name = groupNameInput.value.trim();
+      if (!name) return;
+
+      const checkedBoxes = friendsSelectionList.querySelectorAll('input[type="checkbox"]:checked');
+      const memberIds = Array.from(checkedBoxes).map(cb => cb.value);
+
+      socket.emit('room:create', { name, memberIds });
+      createGroupModal.style.display = 'none';
+      groupNameInput.value = '';
+    });
+
     // Open & Close Add Friend Modal
     btnOpenAddFriend.addEventListener('click', () => {
       addFriendModal.style.display = 'flex';
@@ -460,6 +525,53 @@
       }
     });
 
+    // Unfriend & Delete Group
+    btnUnfriend.addEventListener('click', () => {
+      if (!currentTarget || currentTarget.isGroup) return;
+      if (confirm(`Bạn có chắc muốn hủy kết bạn và xóa ${currentTarget.name} khỏi danh bạ?`)) {
+        socket.emit('friend:remove', { targetUserId: currentTarget.id });
+        currentTarget = null;
+        activeMessages = [];
+        messagesStream.innerHTML = '';
+        renderSidebarContent();
+      }
+    });
+
+    btnDeleteGroup.addEventListener('click', () => {
+      if (!currentTarget || !currentTarget.isGroup) return;
+      if (confirm(`Bạn có chắc muốn xóa nhóm trò chuyện "${currentTarget.name}"?`)) {
+        socket.emit('room:delete', { roomId: currentTarget.id });
+        currentTarget = null;
+        activeMessages = [];
+        messagesStream.innerHTML = '';
+        renderSidebarContent();
+      }
+    });
+
+    // Unpin Message
+    btnUnpinMsg.addEventListener('click', () => {
+      if (!currentPinnedMessage || !currentTarget) return;
+      socket.emit('message:unpin', {
+        messageId: currentPinnedMessage.id,
+        targetId: currentTarget.id,
+        isGroup: currentTarget.isGroup
+      });
+      pinnedBanner.style.display = 'none';
+      currentPinnedMessage = null;
+    });
+
+    // Click pinned banner to jump to message
+    pinnedBanner.addEventListener('click', (e) => {
+      if (e.target === btnUnpinMsg) return;
+      if (!currentPinnedMessage) return;
+      const el = document.querySelector(`[data-msg-id="${currentPinnedMessage.id}"]`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('pulse-highlight');
+        setTimeout(() => el.classList.remove('pulse-highlight'), 1500);
+      }
+    });
+
     // Sidebar navigation tabs (Tin nhắn | Bạn bè)
     sidebarNavTabs.forEach(tab => {
       tab.addEventListener('click', () => {
@@ -470,7 +582,6 @@
       });
     });
 
-    // Search input filtering
     convSearchInput.addEventListener('input', () => {
       renderSidebarContent();
     });
@@ -564,10 +675,59 @@
       }
     });
 
-    // Simulated Calls
-    btnAudioCall.addEventListener('click', () => startSimulatedCall('audio'));
-    btnVideoCall.addEventListener('click', () => startSimulatedCall('video'));
-    btnHangupCall.addEventListener('click', stopSimulatedCall);
+    // REAL WEBRTC CALL INITIATION (Voice & Video)
+    btnAudioCall.addEventListener('click', () => initiateWebRTCCall(false));
+    btnVideoCall.addEventListener('click', () => initiateWebRTCCall(true));
+
+    btnHangupCall.addEventListener('click', () => {
+      hangupWebRTCCall(true);
+    });
+
+    btnAnswerCall.addEventListener('click', answerIncomingCall);
+    btnRejectCall.addEventListener('click', rejectIncomingCall);
+
+    btnToggleMic.addEventListener('click', () => {
+      if (!localStream) return;
+      const audioTrack = localStream.getAudioTracks()[0];
+      if (audioTrack) {
+        audioTrack.enabled = !audioTrack.enabled;
+        btnToggleMic.classList.toggle('off', !audioTrack.enabled);
+      }
+    });
+
+    btnToggleCam.addEventListener('click', () => {
+      if (!localStream) return;
+      const videoTrack = localStream.getVideoTracks()[0];
+      if (videoTrack) {
+        videoTrack.enabled = !videoTrack.enabled;
+        btnToggleCam.classList.toggle('off', !videoTrack.enabled);
+      }
+    });
+  }
+
+  // Open Create Group Modal
+  function openCreateGroupModal() {
+    createGroupModal.style.display = 'flex';
+    friendsSelectionList.innerHTML = '';
+
+    const friendIds = currentUser.friends || [];
+    const friends = allUsers.filter(u => friendIds.includes(u.id) && u.id !== currentUser.id);
+
+    if (friends.length === 0) {
+      friendsSelectionList.innerHTML = '<p style="color: var(--text-dim); text-align: center; padding: 10px;">Bạn chưa có bạn bè để thêm vào nhóm. Hãy kết bạn trước nhé!</p>';
+      return;
+    }
+
+    friends.forEach(f => {
+      const label = document.createElement('label');
+      label.className = 'friend-checkbox-item';
+      label.innerHTML = `
+        <input type="checkbox" value="${f.id}">
+        <img src="${f.avatar}" alt="${f.name}">
+        <span class="friend-checkbox-name">${escapeHTML(f.name)} (${escapeHTML(f.phone || f.tag)})</span>
+      `;
+      friendsSelectionList.appendChild(label);
+    });
   }
 
   // Render Search Results in Add Friend Modal
@@ -620,7 +780,6 @@
               bio: u.bio
             });
           } else if (action === 'add') {
-            // Direct add friend immediately across sockets
             socket.emit('friend:add_direct', { targetUserId: u.id });
             btnAction.textContent = '✓ Đang kết nối...';
             btnAction.className = 'btn-card-action disabled-btn';
@@ -647,7 +806,7 @@
     });
   }
 
-  // Socket Connection & Real-time Event Handlers
+  // Socket Connection & Real-time Handlers
   function connectSocket(user) {
     currentUser = user;
     myAvatar.src = user.avatar;
@@ -669,20 +828,8 @@
       allUsers = data.users;
       allRooms = data.rooms;
       renderSidebarContent();
-
-      if (!currentTarget && allRooms.length > 0) {
-        selectTarget({
-          id: allRooms[0].id,
-          name: allRooms[0].name,
-          avatar: allRooms[0].avatar,
-          isGroup: true,
-          status: 'Nhóm công khai',
-          bio: allRooms[0].description
-        });
-      }
     });
 
-    // Realtime update when any user registers or changes profile
     socket.on('users:list_updated', (updatedUsers) => {
       allUsers = updatedUsers;
       const me = allUsers.find(u => u.id === currentUser.id);
@@ -690,23 +837,81 @@
       renderSidebarContent();
     });
 
-    // Realtime friend added event
     socket.on('friend:added', ({ friend, message }) => {
       if (!Array.isArray(currentUser.friends)) currentUser.friends = [];
       if (!currentUser.friends.includes(friend.id)) {
         currentUser.friends.push(friend.id);
       }
-
-      const existingInAll = allUsers.find(u => u.id === friend.id);
-      if (!existingInAll) {
-        allUsers.push(friend);
-      }
-
       playNotificationDing();
       renderSidebarContent();
     });
 
-    // Realtime user online/offline status change
+    socket.on('friend:removed', ({ removedFriendId }) => {
+      currentUser.friends = (currentUser.friends || []).filter(id => id !== removedFriendId);
+      if (currentTarget && currentTarget.id === removedFriendId) {
+        currentTarget = null;
+        activeMessages = [];
+        messagesStream.innerHTML = '';
+      }
+      renderSidebarContent();
+    });
+
+    socket.on('room:created', ({ room }) => {
+      if (!allRooms.find(r => r.id === room.id)) {
+        allRooms.push(room);
+      }
+      playNotificationDing();
+      renderSidebarContent();
+      selectTarget({
+        id: room.id,
+        name: room.name,
+        avatar: room.avatar,
+        isGroup: true,
+        status: 'Nhóm trò chuyện',
+        bio: room.description
+      });
+    });
+
+    socket.on('room:deleted', ({ roomId }) => {
+      allRooms = allRooms.filter(r => r.id !== roomId);
+      if (currentTarget && currentTarget.id === roomId) {
+        currentTarget = null;
+        activeMessages = [];
+        messagesStream.innerHTML = '';
+      }
+      renderSidebarContent();
+    });
+
+    // Pinned Message Real-time Events
+    socket.on('message:pinned', ({ message, targetId, isGroup }) => {
+      const isRelevant = currentTarget && (
+        (isGroup && currentTarget.id === targetId) ||
+        (!isGroup && (
+          (message.senderId === currentTarget.id && message.targetId === currentUser.id) ||
+          (message.senderId === currentUser.id && message.targetId === currentTarget.id)
+        ))
+      );
+
+      if (isRelevant) {
+        currentPinnedMessage = message;
+        pinnedSnippet.textContent = message.text || (message.imageUrl ? '[Hình ảnh]' : 'Tin nhắn');
+        pinnedBanner.style.display = 'flex';
+      }
+    });
+
+    socket.on('message:unpinned', ({ messageId, targetId, isGroup }) => {
+      const isRelevant = currentTarget && (
+        (isGroup && currentTarget.id === targetId) ||
+        (!isGroup && (currentTarget.id === targetId || currentUser.id === targetId))
+      );
+
+      if (isRelevant && currentPinnedMessage && currentPinnedMessage.id === messageId) {
+        currentPinnedMessage = null;
+        pinnedBanner.style.display = 'none';
+      }
+    });
+
+    // Realtime user status
     socket.on('user:status_changed', ({ userId, status, lastSeen }) => {
       const u = allUsers.find(x => x.id === userId);
       if (u) {
@@ -720,26 +925,32 @@
     });
 
     // Chat history received
-    socket.on('chat:history', ({ targetId, isGroup, messages }) => {
+    socket.on('chat:history', ({ targetId, isGroup, messages, pinnedMessage }) => {
       if (currentTarget && currentTarget.id === targetId) {
         activeMessages = messages || [];
         renderMessages();
         renderSharedMedia();
+
+        if (pinnedMessage) {
+          currentPinnedMessage = pinnedMessage;
+          pinnedSnippet.textContent = pinnedMessage.text || (pinnedMessage.imageUrl ? '[Hình ảnh]' : 'Tin nhắn');
+          pinnedBanner.style.display = 'flex';
+        } else {
+          currentPinnedMessage = null;
+          pinnedBanner.style.display = 'none';
+        }
       }
     });
 
     // REAL-TIME MESSAGE ARRIVAL (NO F5 NEEDED!)
     socket.on('message:new', (msg) => {
-      // Determine conversation partner ID
       const partnerId = msg.isGroup ? msg.targetId : (msg.senderId === currentUser.id ? msg.targetId : msg.senderId);
 
-      // Record last message for instant preview update
       lastMessageMap[partnerId] = {
         text: msg.recalled ? 'Tin nhắn đã được thu hồi' : (msg.text || (msg.imageUrl ? '[Hình ảnh]' : 'Tin nhắn mới')),
         timestamp: msg.timestamp
       };
 
-      // Check if message belongs to current open chat
       const isForCurrentChat = currentTarget && (
         (currentTarget.isGroup && msg.targetId === currentTarget.id) ||
         (!currentTarget.isGroup && (
@@ -754,16 +965,13 @@
         scrollToBottom();
         renderSharedMedia();
       } else {
-        // Increment unread count for that conversation
         unreadCounts[partnerId] = (unreadCounts[partnerId] || 0) + 1;
       }
 
-      // Play pleasant sound on incoming message from other person
       if (msg.senderId !== currentUser.id) {
         playNotificationDing();
       }
 
-      // INSTANTLY update sidebar without any reload
       renderSidebarContent();
     });
 
@@ -813,6 +1021,237 @@
         renderMessages();
       }
     });
+
+    // ===================================================================
+    // WEBRTC SIGNALING LISTENERS (REAL CALL)
+    // ===================================================================
+    socket.on('call:incoming', ({ caller, isVideo, offer }) => {
+      incomingCallData = { caller, isVideo, offer };
+      incomingCallAvatar.src = caller.avatar;
+      incomingCallName.textContent = caller.name;
+      incomingCallType.textContent = isVideo ? '📹 Cuộc gọi video đến...' : '📞 Cuộc gọi thoại đến...';
+      incomingCallModal.style.display = 'flex';
+
+      playRingTone();
+      ringtoneInterval = setInterval(playRingTone, 2500);
+    });
+
+    socket.on('call:answered', async ({ responder, answer }) => {
+      callStatusLabel.textContent = 'Đã kết nối';
+      startCallTimer();
+      if (peerConnection) {
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+      }
+    });
+
+    socket.on('call:candidate', async ({ candidate }) => {
+      if (peerConnection && candidate) {
+        try {
+          await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+        } catch (e) {}
+      }
+    });
+
+    socket.on('call:ended', () => {
+      hangupWebRTCCall(false);
+    });
+
+    socket.on('call:rejected', () => {
+      callStatusLabel.textContent = 'Cuộc gọi bị từ chối';
+      setTimeout(() => hangupWebRTCCall(false), 1200);
+    });
+  }
+
+  // ===================================================================
+  // WEBRTC CALLING IMPLEMENTATION
+  // ===================================================================
+  async function initiateWebRTCCall(isVideo = false) {
+    if (!currentTarget || currentTarget.isGroup) {
+      alert('Chức năng gọi hiện chỉ áp dụng cho trò chuyện 1-1!');
+      return;
+    }
+
+    activeCallPartner = currentTarget;
+    isCallVideo = isVideo;
+
+    callAvatar.src = currentTarget.avatar;
+    callUserName.textContent = currentTarget.name;
+    callStatusLabel.textContent = 'Đang gọi...';
+    callTimerLabel.style.display = 'none';
+    callModal.style.display = 'flex';
+
+    if (isVideo) {
+      videoGrid.style.display = 'block';
+      callAvatarContainer.style.display = 'none';
+    } else {
+      videoGrid.style.display = 'none';
+      callAvatarContainer.style.display = 'flex';
+    }
+
+    try {
+      localStream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: isVideo ? { width: { ideal: 640 }, height: { ideal: 480 } } : false
+      });
+      if (isVideo && localVideo) {
+        localVideo.srcObject = localStream;
+      }
+    } catch (err) {
+      console.warn('Microphone/Camera permission error:', err);
+    }
+
+    peerConnection = new RTCPeerConnection(rtcConfig);
+
+    if (localStream) {
+      localStream.getTracks().forEach(track => {
+        peerConnection.addTrack(track, localStream);
+      });
+    }
+
+    peerConnection.ontrack = (event) => {
+      remoteVideo.srcObject = event.streams[0];
+      remoteStream = event.streams[0];
+    };
+
+    peerConnection.onicecandidate = (event) => {
+      if (event.candidate && socket && activeCallPartner) {
+        socket.emit('call:candidate', {
+          targetUserId: activeCallPartner.id,
+          candidate: event.candidate
+        });
+      }
+    };
+
+    const offer = await peerConnection.createOffer();
+    await peerConnection.setLocalDescription(offer);
+
+    socket.emit('call:initiate', {
+      targetUserId: activeCallPartner.id,
+      isVideo,
+      offer
+    });
+
+    playRingTone();
+    ringtoneInterval = setInterval(playRingTone, 3000);
+  }
+
+  async function answerIncomingCall() {
+    if (!incomingCallData) return;
+    clearInterval(ringtoneInterval);
+    incomingCallModal.style.display = 'none';
+
+    const { caller, isVideo, offer } = incomingCallData;
+    activeCallPartner = caller;
+    isCallVideo = isVideo;
+
+    callAvatar.src = caller.avatar;
+    callUserName.textContent = caller.name;
+    callStatusLabel.textContent = 'Đang kết nối...';
+    callModal.style.display = 'flex';
+
+    if (isVideo) {
+      videoGrid.style.display = 'block';
+      callAvatarContainer.style.display = 'none';
+    } else {
+      videoGrid.style.display = 'none';
+      callAvatarContainer.style.display = 'flex';
+    }
+
+    try {
+      localStream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: isVideo ? { width: { ideal: 640 }, height: { ideal: 480 } } : false
+      });
+      if (isVideo && localVideo) {
+        localVideo.srcObject = localStream;
+      }
+    } catch (err) {
+      console.warn('Microphone/Camera error:', err);
+    }
+
+    peerConnection = new RTCPeerConnection(rtcConfig);
+
+    if (localStream) {
+      localStream.getTracks().forEach(track => {
+        peerConnection.addTrack(track, localStream);
+      });
+    }
+
+    peerConnection.ontrack = (event) => {
+      remoteVideo.srcObject = event.streams[0];
+      remoteStream = event.streams[0];
+    };
+
+    peerConnection.onicecandidate = (event) => {
+      if (event.candidate && socket && activeCallPartner) {
+        socket.emit('call:candidate', {
+          targetUserId: activeCallPartner.id,
+          candidate: event.candidate
+        });
+      }
+    };
+
+    await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+    const answer = await peerConnection.createAnswer();
+    await peerConnection.setLocalDescription(answer);
+
+    socket.emit('call:answer', {
+      targetUserId: caller.id,
+      answer
+    });
+
+    callStatusLabel.textContent = 'Đã kết nối';
+    startCallTimer();
+  }
+
+  function rejectIncomingCall() {
+    clearInterval(ringtoneInterval);
+    incomingCallModal.style.display = 'none';
+    if (incomingCallData && socket) {
+      socket.emit('call:reject', { targetUserId: incomingCallData.caller.id });
+    }
+    incomingCallData = null;
+  }
+
+  function hangupWebRTCCall(notifyPeer = true) {
+    clearInterval(ringtoneInterval);
+    stopCallTimer();
+
+    if (notifyPeer && socket && activeCallPartner) {
+      socket.emit('call:hangup', { targetUserId: activeCallPartner.id });
+    }
+
+    if (localStream) {
+      localStream.getTracks().forEach(track => track.stop());
+      localStream = null;
+    }
+    if (peerConnection) {
+      peerConnection.close();
+      peerConnection = null;
+    }
+
+    callModal.style.display = 'none';
+    incomingCallModal.style.display = 'none';
+    activeCallPartner = null;
+    incomingCallData = null;
+  }
+
+  function startCallTimer() {
+    callSeconds = 0;
+    callTimerLabel.style.display = 'block';
+    callTimerLabel.textContent = '00:00';
+    clearInterval(callTimerInterval);
+    callTimerInterval = setInterval(() => {
+      callSeconds++;
+      const mins = Math.floor(callSeconds / 60).toString().padStart(2, '0');
+      const secs = (callSeconds % 60).toString().padStart(2, '0');
+      callTimerLabel.textContent = `${mins}:${secs}`;
+    }, 1000);
+  }
+
+  function stopCallTimer() {
+    clearInterval(callTimerInterval);
+    callTimerLabel.style.display = 'none';
   }
 
   // Render Sidebar Content
@@ -820,9 +1259,8 @@
     convListContainer.innerHTML = '';
     const query = convSearchInput.value.toLowerCase().trim();
 
-    // 1. MESSAGES TAB: Conversations + Group room
+    // 1. MESSAGES TAB: Conversations + Groups
     if (currentSidebarTab === 'messages') {
-      // General Room first
       allRooms.forEach(room => {
         if (query && !room.name.toLowerCase().includes(query)) return;
         const last = lastMessageMap[room.id];
@@ -831,7 +1269,7 @@
           room.name,
           room.avatar,
           true,
-          last ? last.text : 'Phòng chung mọi người',
+          last ? last.text : 'Nhóm trò chuyện',
           last ? formatTimestamp(last.timestamp) : 'Nhóm',
           true,
           null,
@@ -839,7 +1277,6 @@
         );
       });
 
-      // Direct conversations with friends or people with chat history
       const friendIds = currentUser.friends || [];
       const relevantUserIds = new Set([
         ...friendIds,
@@ -848,7 +1285,6 @@
 
       const directUsers = allUsers.filter(u => relevantUserIds.has(u.id) && u.id !== currentUser.id);
 
-      // Sort by latest message timestamp
       directUsers.sort((a, b) => {
         const timeA = lastMessageMap[a.id] ? lastMessageMap[a.id].timestamp : 0;
         const timeB = lastMessageMap[b.id] ? lastMessageMap[b.id].timestamp : 0;
@@ -962,7 +1398,7 @@
         avatar,
         phone,
         isGroup,
-        status: isGroup ? 'Nhóm công khai' : (isOnline ? 'Đang hoạt động' : 'Ngoại tuyến'),
+        status: isGroup ? 'Nhóm trò chuyện' : (isOnline ? 'Đang hoạt động' : 'Ngoại tuyến'),
         bio: subtext
       });
       if (window.innerWidth <= 680) {
@@ -979,7 +1415,6 @@
     messagesStream.innerHTML = '';
     typingBubble.style.display = 'none';
 
-    // Reset unread
     unreadCounts[target.id] = 0;
 
     // Header
@@ -994,6 +1429,15 @@
     infoBio.textContent = target.bio || '';
     infoChatType.textContent = target.isGroup ? 'Nhóm chung' : 'Trò chuyện 1-1';
     infoOnlineStatus.textContent = target.status;
+
+    // Danger Actions Toggle
+    if (target.isGroup) {
+      btnDeleteGroup.style.display = 'block';
+      btnUnfriend.style.display = 'none';
+    } else {
+      btnDeleteGroup.style.display = 'none';
+      btnUnfriend.style.display = 'block';
+    }
 
     socket.emit('chat:get_history', {
       targetId: target.id,
@@ -1070,6 +1514,7 @@
       <button class="action-bar-btn" data-reaction="😮" title="Wow">😮</button>
       <button class="action-bar-btn" data-reaction="😢" title="Buồn">😢</button>
       <button class="action-bar-btn" data-reaction="🔥" title="Tuyệt vời">🔥</button>
+      <button class="action-bar-btn btn-pin-msg" title="Ghim tin nhắn">📌</button>
       <button class="action-bar-btn btn-reply-msg" title="Trả lời">↩️</button>
     `;
     if (isOutgoing && !msg.recalled) {
@@ -1115,6 +1560,19 @@
         socket.emit('message:react', { messageId: msg.id, emoji });
       });
     });
+
+    // Pin button click
+    const pinBtn = row.querySelector('.btn-pin-msg');
+    if (pinBtn) {
+      pinBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        socket.emit('message:pin', {
+          messageId: msg.id,
+          targetId: currentTarget.id,
+          isGroup: currentTarget.isGroup
+        });
+      });
+    }
 
     const replyBtn = row.querySelector('.btn-reply-msg');
     if (replyBtn) {
@@ -1273,25 +1731,6 @@
     setTimeout(() => {
       messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }, 50);
-  }
-
-  function startSimulatedCall(type) {
-    if (!currentTarget) return;
-    callAvatar.src = currentTarget.avatar;
-    callUserName.textContent = currentTarget.name;
-    callStatusLabel.textContent = `Đang gọi ${type === 'video' ? 'video' : 'thoại'}...`;
-    callModal.style.display = 'flex';
-
-    playRingTone();
-    callAudioInterval = setInterval(playRingTone, 3000);
-  }
-
-  function stopSimulatedCall() {
-    callModal.style.display = 'none';
-    if (callAudioInterval) {
-      clearInterval(callAudioInterval);
-      callAudioInterval = null;
-    }
   }
 
   window.addEventListener('DOMContentLoaded', initApp);

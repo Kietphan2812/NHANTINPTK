@@ -60,30 +60,25 @@ function safeUser(u, isOnline = false) {
   };
 }
 
-// Initial seed data: NO FAKE ACCOUNTS, ONLY REAL REGISTERED USERS
+// Initial seed data: NO FAKE ACCOUNTS, NO DEFAULT FAKE GROUPS
 const initialData = {
   users: [],
-  rooms: [
-    {
-      id: 'room_general',
-      name: '🌟 Hội Bạn Thân (Chém gió)',
-      avatar: 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=150&auto=format&fit=crop&q=80',
-      description: 'Nhóm trò chuyện công khai cho mọi người',
-      isGroup: true
-    }
-  ],
+  rooms: [],
   messages: []
 };
 
 // Database helper
 function normalizeDB(data) {
   if (!data.users) data.users = [];
-  if (!data.rooms) data.rooms = initialData.rooms;
+  if (!data.rooms) data.rooms = [];
   if (!data.messages) data.messages = [];
 
   // Remove any remaining fake users if present
   const fakeIds = ['user_quan', 'user_linh', 'user_tuan', 'user_ngoc'];
   data.users = data.users.filter(u => !fakeIds.includes(u.id));
+
+  // Remove fake room
+  data.rooms = data.rooms.filter(r => r.id !== 'room_general');
 
   // Normalize each real user
   data.users.forEach(u => {
@@ -102,7 +97,7 @@ function normalizeDB(data) {
   });
 
   // Filter out fake messages
-  data.messages = data.messages.filter(m => !fakeIds.includes(m.senderId));
+  data.messages = data.messages.filter(m => !fakeIds.includes(m.senderId) && m.targetId !== 'room_general');
 
   return data;
 }
@@ -308,16 +303,18 @@ io.on('connection', (socket) => {
     }
     userSocketsMap.get(user.id).add(socket.id);
 
-    // Auto join default rooms
+    // Auto join rooms where user is a member
     db.rooms.forEach(room => {
-      socket.join(room.id);
+      if (!room.members || room.members.includes(user.id)) {
+        socket.join(room.id);
+      }
     });
 
     // Notify client of successful login
     socket.emit('login:success', {
       user: safeUser(user, true),
       users: db.users.map(u => safeUser(u, isUserOnline(u.id))),
-      rooms: db.rooms
+      rooms: db.rooms.filter(r => !r.members || r.members.includes(user.id))
     });
 
     // Broadcast user presence change to all clients
@@ -364,6 +361,159 @@ io.on('connection', (socket) => {
     io.emit('users:list_updated', db.users.map(u => safeUser(u, isUserOnline(u.id))));
   });
 
+  // Unfriend / Remove friend
+  socket.on('friend:remove', ({ targetUserId }) => {
+    if (!currentUser || !targetUserId) return;
+
+    const me = db.users.find(u => u.id === currentUser.id);
+    const target = db.users.find(u => u.id === targetUserId);
+    if (!me) return;
+
+    me.friends = (me.friends || []).filter(id => id !== targetUserId);
+    if (target) {
+      target.friends = (target.friends || []).filter(id => id !== currentUser.id);
+    }
+
+    saveDB(db);
+
+    // Notify both sides
+    io.to(`user_${targetUserId}`).emit('friend:removed', {
+      removedFriendId: currentUser.id
+    });
+    io.to(`user_${currentUser.id}`).emit('friend:removed', {
+      removedFriendId: targetUserId
+    });
+
+    io.emit('users:list_updated', db.users.map(u => safeUser(u, isUserOnline(u.id))));
+  });
+
+  // Create Group Chat
+  socket.on('room:create', ({ name, memberIds }) => {
+    if (!currentUser || !name) return;
+
+    const allMembers = Array.from(new Set([currentUser.id, ...(memberIds || [])]));
+    const newRoom = {
+      id: `room_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      name: name.trim(),
+      creatorId: currentUser.id,
+      creatorName: currentUser.name,
+      avatar: `https://api.dicebear.com/7.x/identicon/svg?seed=${encodeURIComponent(name)}`,
+      description: `Nhóm do ${currentUser.name} tạo (${allMembers.length} thành viên)`,
+      members: allMembers,
+      isGroup: true,
+      createdAt: Date.now()
+    };
+
+    db.rooms.push(newRoom);
+    saveDB(db);
+
+    // Make all online members join this room's socket channel
+    allMembers.forEach(memId => {
+      const memSockets = userSocketsMap.get(memId);
+      if (memSockets) {
+        memSockets.forEach(sId => {
+          const s = io.sockets.sockets.get(sId);
+          if (s) s.join(newRoom.id);
+        });
+      }
+      io.to(`user_${memId}`).emit('room:created', { room: newRoom });
+    });
+  });
+
+  // Delete Group Chat
+  socket.on('room:delete', ({ roomId }) => {
+    if (!currentUser || !roomId) return;
+    const room = db.rooms.find(r => r.id === roomId);
+    if (!room) return;
+
+    const members = room.members || [];
+    db.rooms = db.rooms.filter(r => r.id !== roomId);
+    db.messages = db.messages.filter(m => m.targetId !== roomId);
+    saveDB(db);
+
+    // Notify all members
+    members.forEach(memId => {
+      io.to(`user_${memId}`).emit('room:deleted', { roomId });
+    });
+    io.emit('room:deleted', { roomId });
+  });
+
+  // Pin Message
+  socket.on('message:pin', ({ messageId, targetId, isGroup }) => {
+    if (!currentUser) return;
+    const msg = db.messages.find(m => m.id === messageId);
+    if (!msg) return;
+
+    // Unpin other messages in the same conversation
+    db.messages.forEach(m => {
+      if (m.targetId === targetId || (!isGroup && ((m.senderId === currentUser.id && m.targetId === targetId) || (m.senderId === targetId && m.targetId === currentUser.id)))) {
+        m.isPinned = false;
+      }
+    });
+
+    msg.isPinned = true;
+    saveDB(db);
+
+    const payload = { message: msg, targetId, isGroup };
+    if (isGroup) {
+      io.to(targetId).emit('message:pinned', payload);
+    } else {
+      io.to(`user_${targetId}`).emit('message:pinned', payload);
+      io.to(`user_${currentUser.id}`).emit('message:pinned', payload);
+    }
+  });
+
+  // Unpin Message
+  socket.on('message:unpin', ({ messageId, targetId, isGroup }) => {
+    if (!currentUser) return;
+    const msg = db.messages.find(m => m.id === messageId);
+    if (msg) msg.isPinned = false;
+    saveDB(db);
+
+    const payload = { messageId, targetId, isGroup };
+    if (isGroup) {
+      io.to(targetId).emit('message:unpinned', payload);
+    } else {
+      io.to(`user_${targetId}`).emit('message:unpinned', payload);
+      io.to(`user_${currentUser.id}`).emit('message:unpinned', payload);
+    }
+  });
+
+  // ===================================================================
+  // REAL-TIME WEBRTC CALLING (AUDIO & VIDEO)
+  // ===================================================================
+  socket.on('call:initiate', ({ targetUserId, isVideo, offer }) => {
+    if (!currentUser || !targetUserId) return;
+    io.to(`user_${targetUserId}`).emit('call:incoming', {
+      caller: safeUser(currentUser, true),
+      isVideo: !!isVideo,
+      offer
+    });
+  });
+
+  socket.on('call:answer', ({ targetUserId, answer }) => {
+    if (!currentUser || !targetUserId) return;
+    io.to(`user_${targetUserId}`).emit('call:answered', {
+      responder: safeUser(currentUser, true),
+      answer
+    });
+  });
+
+  socket.on('call:candidate', ({ targetUserId, candidate }) => {
+    if (!currentUser || !targetUserId) return;
+    io.to(`user_${targetUserId}`).emit('call:candidate', { candidate });
+  });
+
+  socket.on('call:hangup', ({ targetUserId }) => {
+    if (!currentUser || !targetUserId) return;
+    io.to(`user_${targetUserId}`).emit('call:ended', { byUserId: currentUser.id });
+  });
+
+  socket.on('call:reject', ({ targetUserId }) => {
+    if (!currentUser || !targetUserId) return;
+    io.to(`user_${targetUserId}`).emit('call:rejected', { byUserId: currentUser.id });
+  });
+
   // Request chat history
   socket.on('chat:get_history', ({ targetId, isGroup }) => {
     if (!currentUser) return;
@@ -379,10 +529,13 @@ io.on('connection', (socket) => {
       );
     }
 
+    const pinnedMsg = relevantMessages.find(m => m.isPinned);
+
     socket.emit('chat:history', {
       targetId,
       isGroup,
-      messages: relevantMessages
+      messages: relevantMessages,
+      pinnedMessage: pinnedMsg || null
     });
   });
 
@@ -404,6 +557,7 @@ io.on('connection', (socket) => {
       replyTo: msgData.replyTo || null,
       timestamp: Date.now(),
       reactions: {},
+      isPinned: false,
       recalled: false
     };
 
@@ -411,10 +565,8 @@ io.on('connection', (socket) => {
     saveDB(db);
 
     if (msgData.isGroup) {
-      // Group room broadcast
       io.to(msgData.targetId).emit('message:new', newMessage);
     } else {
-      // Direct message: Instant delivery to recipient's room AND sender's room
       io.to(`user_${msgData.targetId}`).emit('message:new', newMessage);
       io.to(`user_${currentUser.id}`).emit('message:new', newMessage);
     }

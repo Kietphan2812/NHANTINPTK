@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ZaloChat Web - Ứng dụng nhắn tin & kết bạn thời gian thực</title>
-  <meta name="description" content="Nền tảng nhắn tin trực tuyến thời gian thực hiện đại, tìm kiếm kết bạn qua số điện thoại và tên đăng nhập tương tự Zalo & Messenger.">
+  <title>ZaloChat Web - Ứng dụng nhắn tin & gọi thoại thời gian thực</title>
+  <meta name="description" content="Nền tảng nhắn tin, gọi video thời gian thực hiện đại, tìm kiếm kết bạn qua số điện thoại và tên đăng nhập tương tự Zalo & Messenger.">
   
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -38,6 +38,9 @@
         </div>
         
         <div class="header-actions">
+          <button id="btn-open-create-group" class="icon-btn highlight-btn" title="Tạo nhóm trò chuyện mới">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          </button>
           <button id="btn-open-add-friend" class="icon-btn highlight-btn" title="Tìm bạn bằng Số điện thoại & Kết bạn">
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
           </button>
@@ -69,11 +72,7 @@
           💬 Tin nhắn
         </button>
         <button class="nav-tab" data-tab="friends">
-          👥 Danh bạ
-        </button>
-        <button class="nav-tab" data-tab="requests">
-          🔔 Lời mời
-          <span class="tab-badge" id="requests-badge" style="display: none;">0</span>
+          👥 Bạn bè
         </button>
       </div>
 
@@ -102,10 +101,10 @@
         </div>
 
         <div class="chat-header-actions">
-          <button id="btn-audio-call" class="action-btn" title="Gọi thoại (Mô phỏng)">
+          <button id="btn-audio-call" class="action-btn" title="Gọi thoại trực tiếp">
             <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
           </button>
-          <button id="btn-video-call" class="action-btn" title="Gọi video (Mô phỏng)">
+          <button id="btn-video-call" class="action-btn" title="Gọi video trực tiếp">
             <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
           </button>
           <button id="btn-toggle-info" class="action-btn" title="Thông tin cuộc hội thoại">
@@ -113,6 +112,18 @@
           </button>
         </div>
       </header>
+
+      <!-- Pinned Message Banner -->
+      <div class="pinned-message-banner" id="pinned-banner" style="display: none;">
+        <div class="pinned-left">
+          <span class="pinned-icon">📌</span>
+          <div class="pinned-text-group">
+            <span class="pinned-title">Tin nhắn đã ghim</span>
+            <span class="pinned-snippet" id="pinned-snippet">...</span>
+          </div>
+        </div>
+        <button class="btn-unpin" id="btn-unpin-msg" title="Bỏ ghim tin nhắn">✕</button>
+      </div>
 
       <!-- Message Flow Thread -->
       <div class="messages-container" id="messages-container">
@@ -194,7 +205,7 @@
     <!-- RIGHT SIDEBAR: Chat Details & Shared Media -->
     <aside class="sidebar-right" id="sidebar-right">
       <div class="sidebar-right-header">
-        <h3>Hội thoại & Phương tiện</h3>
+        <h3>Hội thoại & Cài đặt</h3>
         <button id="btn-close-right-sidebar" class="icon-btn" title="Đóng">✕</button>
       </div>
 
@@ -202,7 +213,7 @@
         <div class="info-profile-card">
           <img id="info-avatar" src="" alt="Info Avatar" class="big-avatar">
           <h2 id="info-name" class="info-name">Tên</h2>
-          <p id="info-phone" class="info-phone-text">📞 0988111222</p>
+          <p id="info-phone" class="info-phone-text"></p>
           <p id="info-bio" class="info-bio">Tiểu sử</p>
         </div>
 
@@ -217,6 +228,12 @@
           </div>
         </div>
 
+        <!-- Danger Actions: Xóa bạn bè hoặc Xóa nhóm -->
+        <div class="conversation-danger-actions">
+          <button id="btn-unfriend" class="danger-btn w-100" style="display: none;">🗑️ Xóa Bạn Bè (Hủy Kết Bạn)</button>
+          <button id="btn-delete-group" class="danger-btn w-100" style="display: none;">🗑️ Xóa Nhóm Trò Chuyện</button>
+        </div>
+
         <div class="shared-media-section">
           <h4>Ảnh đã gửi trong cuộc trò chuyện</h4>
           <div class="shared-media-grid" id="shared-media-grid">
@@ -228,6 +245,29 @@
 
   </div>
 
+  <!-- MODAL: CREATE GROUP -->
+  <div class="modal-overlay" id="create-group-modal" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header-row">
+        <h3>👥 Tạo Nhóm Trò Chuyện Mới</h3>
+        <button class="icon-btn" id="btn-close-create-group">✕</button>
+      </div>
+      <form id="create-group-form" class="create-group-form">
+        <div class="form-group">
+          <label for="group-name-input">Tên nhóm</label>
+          <input type="text" id="group-name-input" placeholder="Vd: Hội Bạn Thân, Công việc, Gia đình..." required maxlength="40">
+        </div>
+        <div class="form-group">
+          <label>Chọn bạn bè vào nhóm:</label>
+          <div class="friends-selection-list" id="friends-selection-list">
+            <!-- Friend checkboxes injected by JS -->
+          </div>
+        </div>
+        <button type="submit" class="primary-btn w-100">Tạo Nhóm & Bắt Đầu Chat</button>
+      </form>
+    </div>
+  </div>
+
   <!-- MODAL: ADD FRIEND BY PHONE / USERNAME -->
   <div class="modal-overlay" id="add-friend-modal" style="display: none;">
     <div class="modal-card">
@@ -235,7 +275,7 @@
         <h3>🔍 Tìm Bạn & Kết Bạn</h3>
         <button class="icon-btn" id="btn-close-add-friend">✕</button>
       </div>
-      <p class="modal-desc">Nhập Số điện thoại (vd: 0988111222) hoặc Tên đăng nhập để tìm và kết bạn trò chuyện:</p>
+      <p class="modal-desc">Nhập Số điện thoại (vd: 0909999888) hoặc Tên đăng nhập để tìm và kết bạn trò chuyện:</p>
 
       <form id="search-friend-form" class="search-friend-form">
         <div class="search-input-group">
@@ -250,7 +290,7 @@
     </div>
   </div>
 
-  <!-- MODAL: AUTHENTICATION (LOGIN / REGISTER / QUICK DEMO) -->
+  <!-- MODAL: AUTHENTICATION (LOGIN / REGISTER) -->
   <div class="modal-overlay" id="user-select-modal">
     <div class="modal-card auth-card">
       <div class="modal-brand">
@@ -310,18 +350,50 @@
     <img id="lightbox-img" src="" alt="Xem ảnh phóng to">
   </div>
 
-  <!-- SIMULATED CALL MODAL -->
+  <!-- REAL WEBRTC ACTIVE CALL MODAL -->
   <div class="call-modal" id="call-modal" style="display: none;">
-    <div class="call-card">
-      <div class="call-avatar-pulse">
+    <div class="call-card call-active-card">
+      <!-- Video Grid -->
+      <div class="video-grid" id="video-grid" style="display: none;">
+        <video id="remote-video" autoplay playsinline></video>
+        <video id="local-video" autoplay playsinline muted></video>
+      </div>
+
+      <!-- Avatar Pulse for Audio Call -->
+      <div class="call-avatar-pulse" id="call-avatar-container">
         <img id="call-avatar" src="" alt="Call Avatar">
         <div class="pulse-ring"></div>
       </div>
+
       <h3 id="call-user-name">Người dùng</h3>
-      <p id="call-status-label">Đang đổ chuông...</p>
+      <p id="call-status-label">Đang gọi...</p>
+      <div id="call-timer-label" class="call-timer" style="display: none;">00:00</div>
 
       <div class="call-actions">
+        <button id="btn-toggle-mic" class="call-ctrl-btn" title="Bật / Tắt Mic">🎤</button>
+        <button id="btn-toggle-cam" class="call-ctrl-btn" title="Bật / Tắt Camera">📹</button>
         <button id="btn-hangup-call" class="hangup-btn" title="Kết thúc cuộc gọi">
+          <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- INCOMING CALL MODAL -->
+  <div class="call-modal" id="incoming-call-modal" style="display: none;">
+    <div class="call-card">
+      <div class="call-avatar-pulse">
+        <img id="incoming-call-avatar" src="" alt="Incoming Call Avatar">
+        <div class="pulse-ring"></div>
+      </div>
+      <h3 id="incoming-call-name">Người dùng</h3>
+      <p id="incoming-call-type">Cuộc gọi đến...</p>
+
+      <div class="incoming-call-actions">
+        <button id="btn-answer-call" class="answer-btn" title="Bắt máy (Trả lời)">
+          <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+        </button>
+        <button id="btn-reject-call" class="hangup-btn" title="Từ chối">
           <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/></svg>
         </button>
       </div>
