@@ -1,6 +1,6 @@
 /**
  * ZaloChat Frontend Application
- * Real-time messaging, Phone & Username Registration, Login, Add Friend, and Contacts
+ * Real-time messaging, Phone & Username Registration, Login, Instant Add Friend, and Contacts
  */
 
 (() => {
@@ -10,9 +10,7 @@
   const authTabs = document.querySelectorAll('.auth-tab-btn');
   const authLoginForm = document.getElementById('auth-login-form');
   const authRegisterForm = document.getElementById('auth-register-form');
-  const authDemoPanel = document.getElementById('auth-demo-panel');
   const authErrorAlert = document.getElementById('auth-error-alert');
-  const accountGrid = document.getElementById('account-selection-grid');
 
   // Login inputs
   const loginAccountInput = document.getElementById('login-account');
@@ -34,7 +32,6 @@
   const btnLogout = document.getElementById('btn-logout');
   const convSearchInput = document.getElementById('conversation-search');
   const sidebarNavTabs = document.querySelectorAll('.nav-tab');
-  const requestsBadge = document.getElementById('requests-badge');
   const convListContainer = document.getElementById('conversations-list');
   const sidebarLeft = document.querySelector('.sidebar-left');
 
@@ -111,15 +108,17 @@
   let allRooms = [];
   let currentTarget = null;
   let activeMessages = [];
+  let unreadCounts = {}; // targetId -> count
+  let lastMessageMap = {}; // targetId -> { text, timestamp }
   let replyingTo = null;
   let pendingImageFile = null;
   let typingTimer = null;
   let isTyping = false;
-  let currentSidebarTab = 'messages'; // 'messages' | 'friends' | 'requests'
+  let currentSidebarTab = 'messages'; // 'messages' | 'friends'
   let isSoundEnabled = localStorage.getItem('zalochat_sound') !== 'false';
   let callAudioInterval = null;
 
-  // Web Audio Context for sounds
+  // Web Audio Context for crisp sound notifications
   let audioCtx = null;
   function getAudioContext() {
     if (!audioCtx) {
@@ -148,7 +147,7 @@
 
       osc2.frequency.setValueAtTime(1760, now + 0.05);
 
-      gain.gain.setValueAtTime(0.2, now);
+      gain.gain.setValueAtTime(0.25, now);
       gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
 
       osc1.connect(gain);
@@ -221,6 +220,7 @@
   }
 
   function formatTimestamp(timestamp) {
+    if (!timestamp) return '';
     const date = new Date(timestamp);
     const now = new Date();
     const isToday = date.toDateString() === now.toDateString();
@@ -305,7 +305,6 @@
       const data = await res.json();
       allUsers = data.users || [];
       allRooms = data.rooms || [];
-      renderDemoAccounts();
     } catch (err) {
       console.error('Failed to bootstrap app:', err);
     }
@@ -340,26 +339,6 @@
     authTabs.forEach(t => t.classList.toggle('active', t.dataset.auth === tabName));
     authLoginForm.style.display = tabName === 'login' ? 'flex' : 'none';
     authRegisterForm.style.display = tabName === 'register' ? 'flex' : 'none';
-    authDemoPanel.style.display = tabName === 'demo' ? 'block' : 'none';
-  }
-
-  function renderDemoAccounts() {
-    accountGrid.innerHTML = '';
-    allUsers.slice(0, 4).forEach(u => {
-      const card = document.createElement('div');
-      card.className = 'account-card-btn';
-      card.innerHTML = `
-        <img src="${u.avatar}" alt="${u.name}">
-        <div class="acc-info">
-          <span class="acc-name">${escapeHTML(u.name)}</span>
-          <span class="acc-tag">📞 ${escapeHTML(u.phone || '')}</span>
-        </div>
-      `;
-      card.addEventListener('click', () => {
-        loginUserDirect(u);
-      });
-      accountGrid.appendChild(card);
-    });
   }
 
   function loginUserDirect(user) {
@@ -378,6 +357,9 @@
         if (socket) socket.disconnect();
         sessionStorage.removeItem('zalochat_user');
         currentUser = null;
+        currentTarget = null;
+        activeMessages = [];
+        messagesStream.innerHTML = '';
         showAuthModal('login');
       }
     });
@@ -450,6 +432,8 @@
     // Open & Close Add Friend Modal
     btnOpenAddFriend.addEventListener('click', () => {
       addFriendModal.style.display = 'flex';
+      searchResultsArea.innerHTML = '';
+      searchFriendQuery.value = '';
       searchFriendQuery.focus();
     });
     btnCloseAddFriend.addEventListener('click', () => {
@@ -459,24 +443,24 @@
       if (e.target === addFriendModal) addFriendModal.style.display = 'none';
     });
 
-    // Search Friend Form Submit
+    // Search Friend Form Submit (By Phone Number or Username)
     searchFriendForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const query = searchFriendQuery.value.trim();
       if (!query || !currentUser) return;
 
-      searchResultsArea.innerHTML = '<p class="text-center" style="color: var(--text-dim); padding: 12px;">Đang tìm kiếm...</p>';
+      searchResultsArea.innerHTML = '<p style="color: var(--text-dim); text-align: center; padding: 14px;">Đang tìm kiếm...</p>';
 
       try {
         const res = await fetch(`/api/users/search?q=${encodeURIComponent(query)}&currentUserId=${currentUser.id}`);
         const data = await res.json();
         renderSearchResults(data.results || []);
       } catch (err) {
-        searchResultsArea.innerHTML = '<p style="color: var(--danger); text-align: center; padding: 12px;">Lỗi tìm kiếm!</p>';
+        searchResultsArea.innerHTML = '<p style="color: var(--danger); text-align: center; padding: 14px;">Lỗi tìm kiếm, vui lòng thử lại!</p>';
       }
     });
 
-    // Sidebar navigation tabs (Tin nhắn | Danh bạ | Lời mời)
+    // Sidebar navigation tabs (Tin nhắn | Bạn bè)
     sidebarNavTabs.forEach(tab => {
       tab.addEventListener('click', () => {
         sidebarNavTabs.forEach(t => t.classList.remove('active'));
@@ -491,7 +475,7 @@
       renderSidebarContent();
     });
 
-    // Message Input
+    // Message Input & Send
     btnSendMessage.addEventListener('click', handleSendMessage);
     messageInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) {
@@ -590,7 +574,7 @@
   function renderSearchResults(results) {
     searchResultsArea.innerHTML = '';
     if (results.length === 0) {
-      searchResultsArea.innerHTML = '<p style="color: var(--text-dim); text-align: center; padding: 20px;">Không tìm thấy người dùng nào phù hợp.</p>';
+      searchResultsArea.innerHTML = '<p style="color: var(--text-dim); text-align: center; padding: 20px;">Không tìm thấy người dùng nào với số điện thoại hoặc tên này.</p>';
       return;
     }
 
@@ -599,14 +583,10 @@
       card.className = 'search-user-card';
 
       let actionBtnHtml = '';
-      if (u.relation === 'friend') {
-        actionBtnHtml = `<button class="btn-card-action chat-btn" data-action="chat" data-id="${u.id}">💬 Nhắn tin</button>`;
-      } else if (u.relation === 'pending_sent') {
-        actionBtnHtml = `<button class="btn-card-action disabled-btn">Đã gửi lời mời</button>`;
-      } else if (u.relation === 'pending_received') {
-        actionBtnHtml = `<button class="btn-card-action add-btn" data-action="accept" data-id="${u.id}">✓ Chấp nhận</button>`;
+      if (u.isFriend) {
+        actionBtnHtml = `<button class="btn-card-action chat-btn" data-action="chat">💬 Nhắn tin</button>`;
       } else {
-        actionBtnHtml = `<button class="btn-card-action add-btn" data-action="add" data-id="${u.id}">+ Kết bạn</button>`;
+        actionBtnHtml = `<button class="btn-card-action add-btn" data-action="add">+ Kết bạn</button>`;
       }
 
       card.innerHTML = `
@@ -623,7 +603,6 @@
         </div>
       `;
 
-      // Event handlers for action buttons
       const btnAction = card.querySelector('[data-action]');
       if (btnAction) {
         btnAction.addEventListener('click', () => {
@@ -641,15 +620,25 @@
               bio: u.bio
             });
           } else if (action === 'add') {
-            socket.emit('friend:send_request', { targetUserId: u.id });
-            btnAction.textContent = 'Đã gửi lời mời';
+            // Direct add friend immediately across sockets
+            socket.emit('friend:add_direct', { targetUserId: u.id });
+            btnAction.textContent = '✓ Đang kết nối...';
             btnAction.className = 'btn-card-action disabled-btn';
             btnAction.disabled = true;
-          } else if (action === 'accept') {
-            socket.emit('friend:accept_request', { targetUserId: u.id });
-            btnAction.textContent = '💬 Nhắn tin';
-            btnAction.className = 'btn-card-action chat-btn';
-            btnAction.dataset.action = 'chat';
+
+            setTimeout(() => {
+              addFriendModal.style.display = 'none';
+              selectTarget({
+                id: u.id,
+                name: u.name,
+                avatar: u.avatar,
+                phone: u.phone,
+                tag: u.tag,
+                isGroup: false,
+                status: u.status === 'online' ? 'Đang hoạt động' : 'Ngoại tuyến',
+                bio: u.bio
+              });
+            }, 300);
           }
         });
       }
@@ -658,7 +647,7 @@
     });
   }
 
-  // Socket Connection & Events
+  // Socket Connection & Real-time Event Handlers
   function connectSocket(user) {
     currentUser = user;
     myAvatar.src = user.avatar;
@@ -679,7 +668,6 @@
       currentUser = data.user;
       allUsers = data.users;
       allRooms = data.rooms;
-      updateRequestsBadge();
       renderSidebarContent();
 
       if (!currentTarget && allRooms.length > 0) {
@@ -694,53 +682,31 @@
       }
     });
 
+    // Realtime update when any user registers or changes profile
     socket.on('users:list_updated', (updatedUsers) => {
       allUsers = updatedUsers;
       const me = allUsers.find(u => u.id === currentUser.id);
       if (me) currentUser = me;
-      updateRequestsBadge();
       renderSidebarContent();
     });
 
-    // Real-time friend request received
-    socket.on('friend:request_received', ({ fromUser }) => {
-      if (!currentUser.friendRequestsReceived) currentUser.friendRequestsReceived = [];
-      if (!currentUser.friendRequestsReceived.includes(fromUser.id)) {
-        currentUser.friendRequestsReceived.push(fromUser.id);
+    // Realtime friend added event
+    socket.on('friend:added', ({ friend, message }) => {
+      if (!Array.isArray(currentUser.friends)) currentUser.friends = [];
+      if (!currentUser.friends.includes(friend.id)) {
+        currentUser.friends.push(friend.id);
       }
+
+      const existingInAll = allUsers.find(u => u.id === friend.id);
+      if (!existingInAll) {
+        allUsers.push(friend);
+      }
+
       playNotificationDing();
-      updateRequestsBadge();
       renderSidebarContent();
     });
 
-    // Real-time friend request accepted
-    socket.on('friend:request_accepted', ({ friendUser }) => {
-      if (!currentUser.friends) currentUser.friends = [];
-      if (!currentUser.friends.includes(friendUser.id)) {
-        currentUser.friends.push(friendUser.id);
-      }
-      currentUser.friendRequestsReceived = (currentUser.friendRequestsReceived || []).filter(id => id !== friendUser.id);
-      currentUser.friendRequestsSent = (currentUser.friendRequestsSent || []).filter(id => id !== friendUser.id);
-      playNotificationDing();
-      updateRequestsBadge();
-      renderSidebarContent();
-    });
-
-    socket.on('friend:request_sent_success', ({ targetUserId }) => {
-      if (!currentUser.friendRequestsSent) currentUser.friendRequestsSent = [];
-      if (!currentUser.friendRequestsSent.includes(targetUserId)) {
-        currentUser.friendRequestsSent.push(targetUserId);
-      }
-      renderSidebarContent();
-    });
-
-    socket.on('friend:request_declined', ({ targetUserId }) => {
-      currentUser.friendRequestsReceived = (currentUser.friendRequestsReceived || []).filter(id => id !== targetUserId);
-      updateRequestsBadge();
-      renderSidebarContent();
-    });
-
-    // User online status change
+    // Realtime user online/offline status change
     socket.on('user:status_changed', ({ userId, status, lastSeen }) => {
       const u = allUsers.find(x => x.id === userId);
       if (u) {
@@ -753,6 +719,7 @@
       }
     });
 
+    // Chat history received
     socket.on('chat:history', ({ targetId, isGroup, messages }) => {
       if (currentTarget && currentTarget.id === targetId) {
         activeMessages = messages || [];
@@ -761,7 +728,18 @@
       }
     });
 
+    // REAL-TIME MESSAGE ARRIVAL (NO F5 NEEDED!)
     socket.on('message:new', (msg) => {
+      // Determine conversation partner ID
+      const partnerId = msg.isGroup ? msg.targetId : (msg.senderId === currentUser.id ? msg.targetId : msg.senderId);
+
+      // Record last message for instant preview update
+      lastMessageMap[partnerId] = {
+        text: msg.recalled ? 'Tin nhắn đã được thu hồi' : (msg.text || (msg.imageUrl ? '[Hình ảnh]' : 'Tin nhắn mới')),
+        timestamp: msg.timestamp
+      };
+
+      // Check if message belongs to current open chat
       const isForCurrentChat = currentTarget && (
         (currentTarget.isGroup && msg.targetId === currentTarget.id) ||
         (!currentTarget.isGroup && (
@@ -775,15 +753,21 @@
         appendMessageElement(msg);
         scrollToBottom();
         renderSharedMedia();
+      } else {
+        // Increment unread count for that conversation
+        unreadCounts[partnerId] = (unreadCounts[partnerId] || 0) + 1;
       }
 
+      // Play pleasant sound on incoming message from other person
       if (msg.senderId !== currentUser.id) {
         playNotificationDing();
       }
 
+      // INSTANTLY update sidebar without any reload
       renderSidebarContent();
     });
 
+    // Real-time typing indicators
     socket.on('typing:display', ({ senderId, senderName, targetId, isGroup }) => {
       const isRelevant = currentTarget && (
         (isGroup && currentTarget.id === targetId) ||
@@ -808,6 +792,7 @@
       }
     });
 
+    // Message reaction updated
     socket.on('message:reaction_updated', ({ messageId, reactions }) => {
       const msg = activeMessages.find(m => m.id === messageId);
       if (msg) {
@@ -816,6 +801,7 @@
       }
     });
 
+    // Message recalled
     socket.on('message:recalled', ({ messageId }) => {
       const msg = activeMessages.find(m => m.id === messageId);
       if (msg) {
@@ -829,39 +815,83 @@
     });
   }
 
-  function updateRequestsBadge() {
-    const count = (currentUser.friendRequestsReceived || []).length;
-    if (count > 0) {
-      requestsBadge.textContent = count;
-      requestsBadge.style.display = 'inline-block';
-    } else {
-      requestsBadge.style.display = 'none';
-    }
-  }
-
-  // Sidebar Content Rendering based on Active Nav Tab
+  // Render Sidebar Content
   function renderSidebarContent() {
     convListContainer.innerHTML = '';
     const query = convSearchInput.value.toLowerCase().trim();
 
-    // 1. MESSAGES TAB: All conversations + General room
+    // 1. MESSAGES TAB: Conversations + Group room
     if (currentSidebarTab === 'messages') {
-      // Group room first
+      // General Room first
       allRooms.forEach(room => {
         if (query && !room.name.toLowerCase().includes(query)) return;
-        renderConversationItem(room.id, room.name, room.avatar, true, 'Phòng chung mọi người', 'Nhóm công khai');
+        const last = lastMessageMap[room.id];
+        renderConversationItem(
+          room.id,
+          room.name,
+          room.avatar,
+          true,
+          last ? last.text : 'Phòng chung mọi người',
+          last ? formatTimestamp(last.timestamp) : 'Nhóm',
+          true,
+          null,
+          unreadCounts[room.id] || 0
+        );
       });
 
-      // Direct chats with other users
-      const otherUsers = allUsers.filter(u => u.id !== currentUser.id);
-      otherUsers.forEach(u => {
+      // Direct conversations with friends or people with chat history
+      const friendIds = currentUser.friends || [];
+      const relevantUserIds = new Set([
+        ...friendIds,
+        ...Object.keys(lastMessageMap)
+      ]);
+
+      const directUsers = allUsers.filter(u => relevantUserIds.has(u.id) && u.id !== currentUser.id);
+
+      // Sort by latest message timestamp
+      directUsers.sort((a, b) => {
+        const timeA = lastMessageMap[a.id] ? lastMessageMap[a.id].timestamp : 0;
+        const timeB = lastMessageMap[b.id] ? lastMessageMap[b.id].timestamp : 0;
+        return timeB - timeA;
+      });
+
+      if (directUsers.length === 0 && allRooms.length === 0) {
+        convListContainer.innerHTML = `
+          <div class="empty-contacts-state">
+            <p>Chưa có cuộc trò chuyện nào.</p>
+            <button class="primary-btn" id="btn-add-friend-empty">+ Tìm Bạn Bằng Số Điện Thoại</button>
+          </div>
+        `;
+        const btnEmpty = document.getElementById('btn-add-friend-empty');
+        if (btnEmpty) {
+          btnEmpty.addEventListener('click', () => {
+            btnOpenAddFriend.click();
+          });
+        }
+        return;
+      }
+
+      directUsers.forEach(u => {
         if (query && !u.name.toLowerCase().includes(query) && !(u.phone && u.phone.includes(query))) return;
         const isOnline = u.status === 'online';
-        renderConversationItem(u.id, u.name, u.avatar, false, u.bio || `📞 ${u.phone || ''}`, isOnline ? 'Online' : 'Vừa xong', isOnline, u.phone);
+        const last = lastMessageMap[u.id];
+        const unread = unreadCounts[u.id] || 0;
+
+        renderConversationItem(
+          u.id,
+          u.name,
+          u.avatar,
+          false,
+          last ? last.text : `📞 ${u.phone || ''}`,
+          last ? formatTimestamp(last.timestamp) : (isOnline ? 'Online' : 'Vừa xong'),
+          isOnline,
+          u.phone,
+          unread
+        );
       });
     }
 
-    // 2. CONTACTS (FRIENDS) TAB: Only connected friends
+    // 2. FRIENDS (DANH BẠ) TAB: Connected friends
     else if (currentSidebarTab === 'friends') {
       const friendIds = currentUser.friends || [];
       const friends = allUsers.filter(u => friendIds.includes(u.id) && u.id !== currentUser.id);
@@ -869,14 +899,14 @@
       if (friends.length === 0) {
         convListContainer.innerHTML = `
           <div class="empty-contacts-state">
-            <p>Bạn chưa có bạn bè nào.</p>
+            <p>Bạn chưa có bạn bè nào trong danh bạ.</p>
             <button class="primary-btn" id="btn-add-friend-empty">+ Tìm Bạn Bằng Số Điện Thoại</button>
           </div>
         `;
         const btnEmpty = document.getElementById('btn-add-friend-empty');
         if (btnEmpty) {
           btnEmpty.addEventListener('click', () => {
-            addFriendModal.style.display = 'flex';
+            btnOpenAddFriend.click();
           });
         }
         return;
@@ -887,59 +917,26 @@
       friends.forEach(u => {
         if (query && !u.name.toLowerCase().includes(query) && !(u.phone && u.phone.includes(query))) return;
         const isOnline = u.status === 'online';
-        renderConversationItem(u.id, u.name, u.avatar, false, `📞 ${u.phone || ''} • ${u.tag || ''}`, isOnline ? 'Online' : 'Vừa xong', isOnline, u.phone);
-      });
-    }
-
-    // 3. REQUESTS TAB: Pending friend requests received
-    else if (currentSidebarTab === 'requests') {
-      const requestIds = currentUser.friendRequestsReceived || [];
-      const requesters = allUsers.filter(u => requestIds.includes(u.id));
-
-      if (requesters.length === 0) {
-        convListContainer.innerHTML = `
-          <div class="empty-contacts-state">
-            <p>Không có lời mời kết bạn nào đang chờ.</p>
-          </div>
-        `;
-        return;
-      }
-
-      convListContainer.innerHTML = `<div class="contacts-section-title">Lời mời kết bạn (${requesters.length})</div>`;
-
-      requesters.forEach(u => {
-        const item = document.createElement('div');
-        item.className = 'friend-request-card';
-        item.innerHTML = `
-          <div class="req-user-meta">
-            <img src="${u.avatar}" alt="${u.name}">
-            <div class="req-info">
-              <span class="req-name">${escapeHTML(u.name)}</span>
-              <span class="req-phone">📞 ${escapeHTML(u.phone || '')}</span>
-            </div>
-          </div>
-          <div class="req-actions">
-            <button class="btn-accept-req" data-id="${u.id}">Đồng ý</button>
-            <button class="btn-decline-req" data-id="${u.id}">Xóa</button>
-          </div>
-        `;
-
-        item.querySelector('.btn-accept-req').addEventListener('click', () => {
-          socket.emit('friend:accept_request', { targetUserId: u.id });
-        });
-
-        item.querySelector('.btn-decline-req').addEventListener('click', () => {
-          socket.emit('friend:decline_request', { targetUserId: u.id });
-        });
-
-        convListContainer.appendChild(item);
+        renderConversationItem(
+          u.id,
+          u.name,
+          u.avatar,
+          false,
+          `📞 ${u.phone || ''} • ${u.tag || ''}`,
+          isOnline ? 'Online' : 'Vừa xong',
+          isOnline,
+          u.phone,
+          0
+        );
       });
     }
   }
 
-  function renderConversationItem(id, name, avatar, isGroup, subtext, statusText, isOnline = false, phone = null) {
+  function renderConversationItem(id, name, avatar, isGroup, subtext, statusText, isOnline = false, phone = null, unread = 0) {
     const item = document.createElement('div');
-    item.className = `conversation-item ${currentTarget && currentTarget.id === id ? 'active' : ''}`;
+    const isActive = currentTarget && currentTarget.id === id;
+    item.className = `conversation-item ${isActive ? 'active' : ''} ${unread > 0 ? 'has-unread' : ''}`;
+    
     item.innerHTML = `
       <div class="avatar-wrapper">
         <img src="${avatar}" alt="${name}" class="avatar">
@@ -952,11 +949,13 @@
         </div>
         <div class="conv-bottom">
           <span class="conv-last-msg">${escapeHTML(subtext)}</span>
+          ${unread > 0 ? `<span class="unread-badge">${unread}</span>` : ''}
         </div>
       </div>
     `;
 
     item.addEventListener('click', () => {
+      unreadCounts[id] = 0;
       selectTarget({
         id,
         name,
@@ -979,6 +978,9 @@
     activeMessages = [];
     messagesStream.innerHTML = '';
     typingBubble.style.display = 'none';
+
+    // Reset unread
+    unreadCounts[target.id] = 0;
 
     // Header
     chatTargetAvatar.src = target.avatar;

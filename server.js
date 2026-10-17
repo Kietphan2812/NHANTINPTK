@@ -60,70 +60,9 @@ function safeUser(u, isOnline = false) {
   };
 }
 
-// Initial seed data with phone, username, password and friend relations
+// Initial seed data: NO FAKE ACCOUNTS, ONLY REAL REGISTERED USERS
 const initialData = {
-  users: [
-    {
-      id: 'user_quan',
-      name: 'Minh Quân',
-      tag: '@minhquan',
-      username: 'minhquan',
-      phone: '0988111222',
-      password: '123',
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-      bio: 'Lập trình viên • Thích công nghệ & Cà phê ☕',
-      friends: ['user_linh', 'user_tuan'],
-      friendRequestsReceived: [],
-      friendRequestsSent: [],
-      status: 'offline',
-      lastSeen: new Date().toISOString()
-    },
-    {
-      id: 'user_linh',
-      name: 'Hà Linh',
-      tag: '@halinh',
-      username: 'halinh',
-      phone: '0977333444',
-      password: '123',
-      avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80',
-      bio: 'UI/UX Designer • Yêu âm nhạc & Du lịch 🎧✈️',
-      friends: ['user_quan', 'user_ngoc'],
-      friendRequestsReceived: [],
-      friendRequestsSent: [],
-      status: 'offline',
-      lastSeen: new Date().toISOString()
-    },
-    {
-      id: 'user_tuan',
-      name: 'Tuấn Anh',
-      tag: '@tuananh',
-      username: 'tuananh',
-      phone: '0966555666',
-      password: '123',
-      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
-      bio: 'Photographer & Gamer 🎮📷',
-      friends: ['user_quan'],
-      friendRequestsReceived: [],
-      friendRequestsSent: [],
-      status: 'offline',
-      lastSeen: new Date().toISOString()
-    },
-    {
-      id: 'user_ngoc',
-      name: 'Bảo Ngọc',
-      tag: '@baongoc',
-      username: 'baongoc',
-      phone: '0955777888',
-      password: '123',
-      avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&auto=format&fit=crop&q=80',
-      bio: 'Content Creator • Yêu mèo 🐱✨',
-      friends: ['user_linh'],
-      friendRequestsReceived: [],
-      friendRequestsSent: [],
-      status: 'offline',
-      lastSeen: new Date().toISOString()
-    }
-  ],
+  users: [],
   rooms: [
     {
       id: 'room_general',
@@ -133,30 +72,7 @@ const initialData = {
       isGroup: true
     }
   ],
-  messages: [
-    {
-      id: 'msg_welcome_1',
-      senderId: 'user_quan',
-      senderName: 'Minh Quân',
-      senderAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-      targetId: 'room_general',
-      isGroup: true,
-      text: 'Chào cả nhà! Chúc mọi người một ngày làm việc và trò chuyện vui vẻ nhé 🚀',
-      timestamp: Date.now() - 3600000,
-      reactions: { '❤️': ['user_linh', 'user_ngoc'], '👍': ['user_tuan'] }
-    },
-    {
-      id: 'msg_welcome_2',
-      senderId: 'user_linh',
-      senderName: 'Hà Linh',
-      senderAvatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80',
-      targetId: 'room_general',
-      isGroup: true,
-      text: 'Giao diện web chat này xịn xò quá nè mọi người ơi! Có gửi ảnh, thả tim, âm thanh đầy đủ như Messenger luôn á 😍',
-      timestamp: Date.now() - 1800000,
-      reactions: { '🔥': ['user_quan'] }
-    }
-  ]
+  messages: []
 };
 
 // Database helper
@@ -165,21 +81,28 @@ function normalizeDB(data) {
   if (!data.rooms) data.rooms = initialData.rooms;
   if (!data.messages) data.messages = [];
 
-  // Normalize existing users with new fields
-  data.users.forEach((u, idx) => {
+  // Remove any remaining fake users if present
+  const fakeIds = ['user_quan', 'user_linh', 'user_tuan', 'user_ngoc'];
+  data.users = data.users.filter(u => !fakeIds.includes(u.id));
+
+  // Normalize each real user
+  data.users.forEach(u => {
     if (!u.username) {
-      u.username = (u.tag ? u.tag.replace('@', '') : `user_${idx}`).toLowerCase();
+      u.username = (u.tag ? u.tag.replace('@', '') : u.id).toLowerCase();
     }
     if (!u.tag) u.tag = `@${u.username}`;
-    if (!u.phone) {
-      const defaultPhones = ['0988111222', '0977333444', '0966555666', '0955777888'];
-      u.phone = defaultPhones[idx] || `090${Math.floor(1000000 + Math.random() * 9000000)}`;
-    }
-    if (!u.password) u.password = '123';
     if (!Array.isArray(u.friends)) u.friends = [];
     if (!Array.isArray(u.friendRequestsReceived)) u.friendRequestsReceived = [];
     if (!Array.isArray(u.friendRequestsSent)) u.friendRequestsSent = [];
+
+    // Filter out fake IDs from friend lists
+    u.friends = u.friends.filter(fId => !fakeIds.includes(fId));
+    u.friendRequestsReceived = u.friendRequestsReceived.filter(fId => !fakeIds.includes(fId));
+    u.friendRequestsSent = u.friendRequestsSent.filter(fId => !fakeIds.includes(fId));
   });
+
+  // Filter out fake messages
+  data.messages = data.messages.filter(m => !fakeIds.includes(m.senderId));
 
   return data;
 }
@@ -210,9 +133,7 @@ function saveDB(data) {
 // Memory cache of DB
 let db = loadDB();
 
-// Track online sockets: socket.id -> userId
-const socketUserMap = new Map();
-// userId -> Set of socket.ids (a user can have multiple tabs open)
+// Track online sockets: userId -> Set of socket.ids
 const userSocketsMap = new Map();
 
 function isUserOnline(userId) {
@@ -257,18 +178,15 @@ app.post('/api/auth/register', (req, res) => {
   const cleanPhone = phone.trim().replace(/\s+/g, '');
   const cleanUsername = (username || cleanPhone).trim().toLowerCase().replace(/[@\s]/g, '');
 
-  // Validate phone format
   if (!/^[0-9]{9,11}$/.test(cleanPhone)) {
     return res.status(400).json({ error: 'Số điện thoại không hợp lệ (cần từ 9 đến 11 chữ số)!' });
   }
 
-  // Check unique phone
   const existingPhone = db.users.find(u => u.phone === cleanPhone);
   if (existingPhone) {
     return res.status(400).json({ error: 'Số điện thoại này đã được đăng ký tài khoản!' });
   }
 
-  // Check unique username
   const existingUser = db.users.find(u => u.username === cleanUsername);
   if (existingUser) {
     return res.status(400).json({ error: 'Tên đăng nhập này đã được sử dụng, vui lòng chọn tên khác!' });
@@ -283,21 +201,18 @@ app.post('/api/auth/register', (req, res) => {
     password: password.trim(),
     avatar: avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(cleanUsername)}`,
     bio: bio ? bio.trim() : 'Chào bạn, tôi vừa tham gia ZaloChat!',
-    friends: ['user_quan', 'user_linh'], // Auto befriend demo contacts for great immediate experience
+    friends: [],
     friendRequestsReceived: [],
     friendRequestsSent: [],
     status: 'offline',
     lastSeen: new Date().toISOString()
   };
 
-  // Add new user to demo users' friend lists
-  const quan = db.users.find(u => u.id === 'user_quan');
-  if (quan && !quan.friends.includes(newUser.id)) quan.friends.push(newUser.id);
-  const linh = db.users.find(u => u.id === 'user_linh');
-  if (linh && !linh.friends.includes(newUser.id)) linh.friends.push(newUser.id);
-
   db.users.push(newUser);
   saveDB(db);
+
+  // Broadcast new user list immediately to all connected sockets
+  io.emit('users:list_updated', db.users.map(u => safeUser(u, isUserOnline(u.id))));
 
   res.json({
     success: true,
@@ -356,51 +271,18 @@ app.get('/api/users/search', (req, res) => {
   });
 
   const results = matched.map(u => {
-    let relation = 'none'; // 'friend' | 'pending_sent' | 'pending_received' | 'none'
-    if (currentUser) {
-      if ((currentUser.friends || []).includes(u.id)) {
-        relation = 'friend';
-      } else if ((currentUser.friendRequestsSent || []).includes(u.id)) {
-        relation = 'pending_sent';
-      } else if ((currentUser.friendRequestsReceived || []).includes(u.id)) {
-        relation = 'pending_received';
-      }
+    let isFriend = false;
+    if (currentUser && (currentUser.friends || []).includes(u.id)) {
+      isFriend = true;
     }
 
     return {
       ...safeUser(u, isUserOnline(u.id)),
-      relation
+      isFriend
     };
   });
 
   res.json({ results });
-});
-
-// Get user profile with friend lists
-app.get('/api/users/:userId/friends', (req, res) => {
-  const user = db.users.find(u => u.id === req.params.userId);
-  if (!user) return res.status(404).json({ error: 'Không tìm thấy người dùng' });
-
-  const friends = (user.friends || []).map(fId => {
-    const f = db.users.find(u => u.id === fId);
-    return f ? safeUser(f, isUserOnline(f.id)) : null;
-  }).filter(Boolean);
-
-  const pendingReceived = (user.friendRequestsReceived || []).map(rId => {
-    const r = db.users.find(u => u.id === rId);
-    return r ? safeUser(r, isUserOnline(r.id)) : null;
-  }).filter(Boolean);
-
-  const pendingSent = (user.friendRequestsSent || []).map(sId => {
-    const s = db.users.find(u => u.id === sId);
-    return s ? safeUser(s, isUserOnline(s.id)) : null;
-  }).filter(Boolean);
-
-  res.json({
-    friends,
-    pendingReceived,
-    pendingSent
-  });
 });
 
 // ===================================================================
@@ -412,29 +294,14 @@ io.on('connection', (socket) => {
 
   // User connection registration
   socket.on('user:login', (userData) => {
+    if (!userData || !userData.id) return;
     let user = db.users.find(u => u.id === userData.id);
-    if (!user) {
-      user = {
-        id: userData.id || `user_${Date.now()}`,
-        name: userData.name || 'Người dùng mới',
-        tag: `@${(userData.name || 'user').toLowerCase().replace(/\s+/g, '')}`,
-        username: (userData.name || 'user').toLowerCase().replace(/\s+/g, ''),
-        phone: userData.phone || '0901234567',
-        password: '123',
-        avatar: userData.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(userData.name || 'user')}`,
-        bio: userData.bio || 'Chào bạn, tôi vừa tham gia!',
-        friends: ['user_quan', 'user_linh'],
-        friendRequestsReceived: [],
-        friendRequestsSent: [],
-        status: 'online',
-        lastSeen: new Date().toISOString()
-      };
-      db.users.push(user);
-      saveDB(db);
-    }
+    if (!user) return;
 
     currentUser = user;
-    socketUserMap.set(socket.id, user.id);
+
+    // Join user's personal private room
+    socket.join(`user_${user.id}`);
 
     if (!userSocketsMap.has(user.id)) {
       userSocketsMap.set(user.id, new Set());
@@ -461,104 +328,40 @@ io.on('connection', (socket) => {
     });
   });
 
-  // Friend Request: Send
-  socket.on('friend:send_request', ({ targetUserId }) => {
+  // Direct Add Friend (Instant add without reload)
+  socket.on('friend:add_direct', ({ targetUserId }) => {
     if (!currentUser || !targetUserId || currentUser.id === targetUserId) return;
 
-    const targetUser = db.users.find(u => u.id === targetUserId);
-    const senderUser = db.users.find(u => u.id === currentUser.id);
-    if (!targetUser || !senderUser) return;
+    const me = db.users.find(u => u.id === currentUser.id);
+    const target = db.users.find(u => u.id === targetUserId);
+    if (!me || !target) return;
 
-    if (!Array.isArray(senderUser.friendRequestsSent)) senderUser.friendRequestsSent = [];
-    if (!Array.isArray(targetUser.friendRequestsReceived)) targetUser.friendRequestsReceived = [];
+    if (!Array.isArray(me.friends)) me.friends = [];
+    if (!Array.isArray(target.friends)) target.friends = [];
 
-    if (!senderUser.friendRequestsSent.includes(targetUserId)) {
-      senderUser.friendRequestsSent.push(targetUserId);
+    if (!me.friends.includes(targetUserId)) {
+      me.friends.push(targetUserId);
     }
-    if (!targetUser.friendRequestsReceived.includes(currentUser.id)) {
-      targetUser.friendRequestsReceived.push(currentUser.id);
+    if (!target.friends.includes(currentUser.id)) {
+      target.friends.push(currentUser.id);
     }
 
     saveDB(db);
 
-    // Emit to sender
-    socket.emit('friend:request_sent_success', {
-      targetUserId,
-      targetUser: safeUser(targetUser, isUserOnline(targetUserId))
+    // Notify target user room immediately
+    io.to(`user_${targetUserId}`).emit('friend:added', {
+      friend: safeUser(me, isUserOnline(me.id)),
+      message: `${me.name} đã thêm bạn vào danh bạ!`
     });
 
-    // Emit to recipient's sockets
-    const targetSockets = userSocketsMap.get(targetUserId);
-    if (targetSockets) {
-      targetSockets.forEach(sId => {
-        io.to(sId).emit('friend:request_received', {
-          fromUser: safeUser(senderUser, isUserOnline(senderUser.id))
-        });
-      });
-    }
-  });
-
-  // Friend Request: Accept
-  socket.on('friend:accept_request', ({ targetUserId }) => {
-    if (!currentUser || !targetUserId) return;
-
-    const me = db.users.find(u => u.id === currentUser.id);
-    const friend = db.users.find(u => u.id === targetUserId);
-    if (!me || !friend) return;
-
-    // Remove from pending
-    me.friendRequestsReceived = (me.friendRequestsReceived || []).filter(id => id !== targetUserId);
-    friend.friendRequestsSent = (friend.friendRequestsSent || []).filter(id => id !== currentUser.id);
-
-    // Add to friends
-    if (!me.friends) me.friends = [];
-    if (!friend.friends) friend.friends = [];
-
-    if (!me.friends.includes(targetUserId)) me.friends.push(targetUserId);
-    if (!friend.friends.includes(currentUser.id)) friend.friends.push(currentUser.id);
-
-    saveDB(db);
-
-    // Notify current user
-    const mySockets = userSocketsMap.get(currentUser.id);
-    if (mySockets) {
-      mySockets.forEach(sId => {
-        io.to(sId).emit('friend:request_accepted', {
-          friendUser: safeUser(friend, isUserOnline(friend.id))
-        });
-      });
-    }
-
-    // Notify target user
-    const targetSockets = userSocketsMap.get(targetUserId);
-    if (targetSockets) {
-      targetSockets.forEach(sId => {
-        io.to(sId).emit('friend:request_accepted', {
-          friendUser: safeUser(me, isUserOnline(me.id))
-        });
-      });
-    }
+    // Notify sender user room immediately
+    io.to(`user_${currentUser.id}`).emit('friend:added', {
+      friend: safeUser(target, isUserOnline(target.id)),
+      message: `Đã kết bạn thành công với ${target.name}!`
+    });
 
     // Broadcast updated users list
     io.emit('users:list_updated', db.users.map(u => safeUser(u, isUserOnline(u.id))));
-  });
-
-  // Friend Request: Decline
-  socket.on('friend:decline_request', ({ targetUserId }) => {
-    if (!currentUser || !targetUserId) return;
-
-    const me = db.users.find(u => u.id === currentUser.id);
-    const requester = db.users.find(u => u.id === targetUserId);
-    if (!me) return;
-
-    me.friendRequestsReceived = (me.friendRequestsReceived || []).filter(id => id !== targetUserId);
-    if (requester) {
-      requester.friendRequestsSent = (requester.friendRequestsSent || []).filter(id => id !== currentUser.id);
-    }
-
-    saveDB(db);
-
-    socket.emit('friend:request_declined', { targetUserId });
   });
 
   // Request chat history
@@ -583,7 +386,7 @@ io.on('connection', (socket) => {
     });
   });
 
-  // Sending a message
+  // Sending a message: Realtime dispatch to both rooms
   socket.on('message:send', (msgData) => {
     if (!currentUser) return;
 
@@ -608,20 +411,12 @@ io.on('connection', (socket) => {
     saveDB(db);
 
     if (msgData.isGroup) {
+      // Group room broadcast
       io.to(msgData.targetId).emit('message:new', newMessage);
     } else {
-      const recipientSockets = userSocketsMap.get(msgData.targetId);
-      if (recipientSockets) {
-        recipientSockets.forEach(sId => {
-          io.to(sId).emit('message:new', newMessage);
-        });
-      }
-      const senderSockets = userSocketsMap.get(currentUser.id);
-      if (senderSockets) {
-        senderSockets.forEach(sId => {
-          io.to(sId).emit('message:new', newMessage);
-        });
-      }
+      // Direct message: Instant delivery to recipient's room AND sender's room
+      io.to(`user_${msgData.targetId}`).emit('message:new', newMessage);
+      io.to(`user_${currentUser.id}`).emit('message:new', newMessage);
     }
   });
 
@@ -638,12 +433,7 @@ io.on('connection', (socket) => {
     if (isGroup) {
       socket.to(targetId).emit('typing:display', payload);
     } else {
-      const recipientSockets = userSocketsMap.get(targetId);
-      if (recipientSockets) {
-        recipientSockets.forEach(sId => {
-          io.to(sId).emit('typing:display', payload);
-        });
-      }
+      socket.to(`user_${targetId}`).emit('typing:display', payload);
     }
   });
 
@@ -658,12 +448,7 @@ io.on('connection', (socket) => {
     if (isGroup) {
       socket.to(targetId).emit('typing:hide', payload);
     } else {
-      const recipientSockets = userSocketsMap.get(targetId);
-      if (recipientSockets) {
-        recipientSockets.forEach(sId => {
-          io.to(sId).emit('typing:hide', payload);
-        });
-      }
+      socket.to(`user_${targetId}`).emit('typing:hide', payload);
     }
   });
 
@@ -741,7 +526,6 @@ io.on('connection', (socket) => {
           });
         }
       }
-      socketUserMap.delete(socket.id);
     }
   });
 });
