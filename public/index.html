@@ -2,7 +2,10 @@
 <html lang="vi" data-theme="dark">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#121721">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>ZaloChat Web - Ứng dụng nhắn tin & gọi thoại thời gian thực</title>
   <meta name="description" content="Nền tảng nhắn tin, gọi video thời gian thực hiện đại, tìm kiếm kết bạn qua số điện thoại và tên đăng nhập tương tự Zalo & Messenger.">
   
@@ -80,6 +83,22 @@
       <div class="conversations-scroll" id="conversations-list">
         <!-- Rendered dynamically via JS -->
       </div>
+
+      <!-- Mobile Bottom Navigation Bar (Zalo / Messenger Style) -->
+      <nav class="mobile-bottom-nav" id="mobile-bottom-nav">
+        <button class="mobile-nav-btn active" data-tab="messages">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          <span>Tin nhắn</span>
+        </button>
+        <button class="mobile-nav-btn" data-tab="friends">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <span>Danh bạ</span>
+        </button>
+        <button class="mobile-nav-btn" id="btn-mobile-profile">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <span>Cá nhân</span>
+        </button>
+      </nav>
     </aside>
 
     <!-- CENTER: Main Chat Box -->
@@ -163,22 +182,42 @@
 
       <!-- Chat Input Section -->
       <footer class="chat-input-wrapper">
-        <input type="file" id="file-input" accept="image/*" style="display: none;">
+        <input type="file" id="file-input" accept="image/*,audio/*,.pdf,.doc,.docx,.txt" style="display: none;">
 
-        <div class="chat-input-toolbar">
-          <button id="btn-attach-image" class="tool-btn" title="Gửi ảnh">
+        <!-- Active Voice Recording Bar (Zalo / Messenger Style) -->
+        <div class="voice-recording-bar" id="voice-recording-bar" style="display: none;">
+          <div class="recording-status">
+            <span class="recording-pulse-dot"></span>
+            <span class="recording-label">Đang ghi âm:</span>
+            <span class="recording-time" id="recording-time">00:00</span>
+            <div class="recording-waves">
+              <span></span><span></span><span></span><span></span><span></span>
+            </div>
+          </div>
+          <div class="recording-actions">
+            <button type="button" id="btn-cancel-voice" class="btn-voice-cancel" title="Hủy bỏ">✕ Hủy</button>
+            <button type="button" id="btn-send-voice" class="btn-voice-send" title="Gửi tin nhắn thoại">Gửi ✈️</button>
+          </div>
+        </div>
+
+        <div class="chat-input-toolbar" id="chat-input-toolbar">
+          <button id="btn-attach-image" class="tool-btn" title="Gửi ảnh hoặc tài liệu">
             <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
           </button>
           
+          <button id="btn-record-voice" class="tool-btn" title="Ghi âm tin nhắn thoại">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+          </button>
+
           <div class="input-field-container">
-            <textarea id="message-input" rows="1" placeholder="Nhập tin nhắn... (Nhấn Enter để gửi, Shift+Enter xuống dòng)"></textarea>
+            <textarea id="message-input" rows="1" placeholder="Nhập tin nhắn... (Shift+Enter để xuống dòng)"></textarea>
           </div>
 
           <button id="btn-emoji-trigger" class="tool-btn" title="Chọn biểu tượng cảm xúc">
             <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
           </button>
 
-          <button id="btn-send-message" class="send-btn" title="Gửi tin nhắn (Enter)">
+          <button id="btn-send-message" class="send-btn" title="Gửi tin nhắn">
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
           </button>
         </div>
@@ -316,7 +355,10 @@
         </div>
         <div class="form-group">
           <label for="login-password">Mật khẩu</label>
-          <input type="password" id="login-password" placeholder="Nhập mật khẩu..." required>
+          <div class="input-password-wrapper">
+            <input type="password" id="login-password" placeholder="Nhập mật khẩu..." required>
+            <button type="button" class="btn-toggle-password" data-target="login-password" title="Hiện/ẩn mật khẩu">👁️</button>
+          </div>
         </div>
         <button type="submit" class="primary-btn w-100">Đăng Nhập</button>
       </form>
@@ -337,9 +379,48 @@
         </div>
         <div class="form-group">
           <label for="reg-password">Mật khẩu</label>
-          <input type="password" id="reg-password" placeholder="Tối thiểu 3 ký tự" required minlength="3">
+          <div class="input-password-wrapper">
+            <input type="password" id="reg-password" placeholder="Tối thiểu 3 ký tự" required minlength="3">
+            <button type="button" class="btn-toggle-password" data-target="reg-password" title="Hiện/ẩn mật khẩu">👁️</button>
+          </div>
         </div>
         <button type="submit" class="primary-btn w-100">Đăng Ký & Vào Chat Ngay</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: USER PROFILE & SETTINGS (Zalo / Messenger Style) -->
+  <div class="modal-overlay" id="profile-modal" style="display: none;">
+    <div class="modal-card profile-card">
+      <div class="profile-card-header">
+        <h3>Hồ Sơ Của Tôi</h3>
+        <button id="btn-close-profile-modal" class="icon-btn" title="Đóng">✕</button>
+      </div>
+      <div class="profile-edit-avatar-box">
+        <img id="profile-modal-avatar" src="" alt="Avatar" class="profile-big-avatar">
+        <button type="button" id="btn-change-avatar" class="change-avatar-btn">Đổi Avatar ngẫu nhiên 🎲</button>
+      </div>
+      <form id="profile-edit-form" class="auth-form-panel">
+        <div class="form-group">
+          <label for="profile-input-name">Tên hiển thị</label>
+          <input type="text" id="profile-input-name" required maxlength="35">
+        </div>
+        <div class="form-group">
+          <label for="profile-input-phone">Số điện thoại</label>
+          <input type="text" id="profile-input-phone" disabled style="opacity: 0.7; cursor: not-allowed;">
+        </div>
+        <div class="form-group">
+          <label for="profile-input-username">Tên tài khoản</label>
+          <input type="text" id="profile-input-username" disabled style="opacity: 0.7; cursor: not-allowed;">
+        </div>
+        <div class="form-group">
+          <label for="profile-input-bio">Tiểu sử / Giới thiệu</label>
+          <input type="text" id="profile-input-bio" placeholder="Vd: Đang bận, vui lòng để lại lời nhắn..." maxlength="100">
+        </div>
+        <div class="profile-form-buttons">
+          <button type="submit" class="primary-btn w-100">Lưu Thông Tin</button>
+          <button type="button" id="btn-profile-logout" class="danger-btn w-100">Đăng Xuất Khỏi Thiết Bị</button>
+        </div>
       </form>
     </div>
   </div>

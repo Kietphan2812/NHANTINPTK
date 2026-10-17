@@ -456,6 +456,36 @@ app.get('/api/users/search', (req, res) => {
   res.json({ results });
 });
 
+// Update user profile (Name, Bio, Avatar)
+app.post('/api/users/profile', (req, res) => {
+  const { id, name, bio, avatar } = req.body;
+  if (!id || !name) {
+    return res.status(400).json({ error: 'Thiếu thông tin người dùng' });
+  }
+  const user = dbFindUserById(id);
+  if (!user) {
+    return res.status(404).json({ error: 'Không tìm thấy người dùng' });
+  }
+  const newName = name.trim();
+  const newBio = bio !== undefined ? bio.trim() : (user.bio || '');
+  const newAvatar = avatar || user.avatar;
+
+  if (sqliteDb) {
+    sqliteDb.prepare('UPDATE users SET name = ?, bio = ?, avatar = ? WHERE id = ?').run(newName, newBio, newAvatar, id);
+  }
+  const u = jsonDb.users.find(x => x.id === id);
+  if (u) {
+    u.name = newName;
+    u.bio = newBio;
+    u.avatar = newAvatar;
+    saveJSONDB(jsonDb);
+  }
+
+  const updatedUser = dbFindUserById(id);
+  io.emit('users:list_updated', dbGetAllUsers().map(x => safeUser(x, isUserOnline(x.id))));
+  res.json({ success: true, user: safeUser(updatedUser, isUserOnline(id)) });
+});
+
 // ===================================================================
 // SOCKET.IO REAL-TIME LOGIC
 // ===================================================================

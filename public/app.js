@@ -78,9 +78,15 @@
   const previewFilename = document.getElementById('preview-filename');
   const btnRemovePreviewImage = document.getElementById('btn-remove-preview-image');
 
-  // Chat input
+  // Chat input & Voice recording
   const fileInput = document.getElementById('file-input');
   const btnAttachImage = document.getElementById('btn-attach-image');
+  const btnRecordVoice = document.getElementById('btn-record-voice');
+  const voiceRecordingBar = document.getElementById('voice-recording-bar');
+  const recordingTime = document.getElementById('recording-time');
+  const btnCancelVoice = document.getElementById('btn-cancel-voice');
+  const btnSendVoice = document.getElementById('btn-send-voice');
+  const chatInputToolbar = document.getElementById('chat-input-toolbar');
   const messageInput = document.getElementById('message-input');
   const btnEmojiTrigger = document.getElementById('btn-emoji-trigger');
   const btnSendMessage = document.getElementById('btn-send-message');
@@ -88,6 +94,21 @@
   const btnCloseEmoji = document.getElementById('btn-close-emoji');
   const emojiGrid = document.getElementById('emoji-grid');
   const emojiTabs = document.querySelectorAll('.emoji-tab');
+
+  // User Profile Modal Elements
+  const btnMyProfile = document.getElementById('btn-my-profile');
+  const btnMobileProfile = document.getElementById('btn-mobile-profile');
+  const profileModal = document.getElementById('profile-modal');
+  const btnCloseProfileModal = document.getElementById('btn-close-profile-modal');
+  const profileModalAvatar = document.getElementById('profile-modal-avatar');
+  const btnChangeAvatar = document.getElementById('btn-change-avatar');
+  const profileInputName = document.getElementById('profile-input-name');
+  const profileInputPhone = document.getElementById('profile-input-phone');
+  const profileInputUsername = document.getElementById('profile-input-username');
+  const profileInputBio = document.getElementById('profile-input-bio');
+  const profileEditForm = document.getElementById('profile-edit-form');
+  const btnProfileLogout = document.getElementById('btn-profile-logout');
+  const mobileNavBtns = document.querySelectorAll('.mobile-nav-btn');
 
   // Right sidebar & Danger actions
   const sidebarRight = document.getElementById('sidebar-right');
@@ -144,6 +165,13 @@
   let isTyping = false;
   let currentSidebarTab = 'messages'; // 'messages' | 'friends'
   let isSoundEnabled = localStorage.getItem('zalochat_sound') !== 'false';
+
+  // Voice Recording State (Zalo / Messenger Style)
+  let voiceMediaRecorder = null;
+  let voiceAudioChunks = [];
+  let voiceRecordTimer = null;
+  let voiceRecordSeconds = 0;
+  let voiceMediaStream = null;
 
   // WebRTC Call State
   let peerConnection = null;
@@ -665,7 +693,99 @@
     // Mobile Back
     btnMobileBack.addEventListener('click', () => {
       sidebarLeft.classList.remove('hidden-mobile');
+      currentTarget = null;
     });
+
+    // Password Visibility Eye Toggle
+    document.querySelectorAll('.btn-toggle-password').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const targetId = btn.dataset.target;
+        const targetInput = document.getElementById(targetId);
+        if (targetInput) {
+          const isPwd = targetInput.type === 'password';
+          targetInput.type = isPwd ? 'text' : 'password';
+          btn.textContent = isPwd ? '🙈' : '👁️';
+        }
+      });
+    });
+
+    // Mobile Bottom Navigation Tabs (Tin nhắn | Danh bạ | Cá nhân)
+    mobileNavBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (btn.id === 'btn-mobile-profile') {
+          openProfileModal();
+          return;
+        }
+        const tab = btn.dataset.tab;
+        if (tab) {
+          mobileNavBtns.forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+          sidebarNavTabs.forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+          currentSidebarTab = tab;
+          renderSidebarContent();
+        }
+      });
+    });
+
+    // Profile Modal Listeners
+    if (btnMyProfile) btnMyProfile.addEventListener('click', openProfileModal);
+    if (btnMobileProfile) btnMobileProfile.addEventListener('click', openProfileModal);
+    if (btnCloseProfileModal) btnCloseProfileModal.addEventListener('click', closeProfileModal);
+    if (profileModal) {
+      profileModal.addEventListener('click', (e) => {
+        if (e.target === profileModal) closeProfileModal();
+      });
+    }
+    if (btnChangeAvatar) {
+      btnChangeAvatar.addEventListener('click', () => {
+        const rand = Math.random().toString(36).substring(2, 9);
+        profileModalAvatar.src = `https://api.dicebear.com/7.x/bottts/svg?seed=${rand}`;
+      });
+    }
+    if (profileEditForm) {
+      profileEditForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (!currentUser) return;
+        const newName = profileInputName.value.trim();
+        const newBio = profileInputBio.value.trim();
+        const newAvatar = profileModalAvatar.src;
+
+        try {
+          const res = await fetch('/api/users/profile', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              id: currentUser.id,
+              name: newName,
+              bio: newBio,
+              avatar: newAvatar
+            })
+          });
+          const data = await res.json();
+          if (data.success && data.user) {
+            currentUser = data.user;
+            localStorage.setItem('zalochat_user', JSON.stringify(currentUser));
+            myAvatar.src = currentUser.avatar;
+            myName.textContent = currentUser.name;
+            closeProfileModal();
+            alert('Cập nhật hồ sơ thành công!');
+          }
+        } catch (err) {
+          alert('Lỗi cập nhật hồ sơ, vui lòng thử lại!');
+        }
+      });
+    }
+    if (btnProfileLogout) {
+      btnProfileLogout.addEventListener('click', () => {
+        closeProfileModal();
+        btnLogout.click();
+      });
+    }
+
+    // Voice Recording Listeners (Zalo / Messenger Style)
+    if (btnRecordVoice) btnRecordVoice.addEventListener('click', startVoiceRecording);
+    if (btnCancelVoice) btnCancelVoice.addEventListener('click', cancelVoiceRecording);
+    if (btnSendVoice) btnSendVoice.addEventListener('click', sendVoiceRecording);
 
     // Lightbox Close
     lightboxClose.addEventListener('click', () => {
@@ -705,6 +825,112 @@
         btnToggleCam.classList.toggle('off', !videoTrack.enabled);
       }
     });
+  }
+
+  // Profile Modal Functions
+  function openProfileModal() {
+    if (!currentUser) return;
+    profileModalAvatar.src = currentUser.avatar;
+    profileInputName.value = currentUser.name || '';
+    profileInputPhone.value = currentUser.phone || '';
+    profileInputUsername.value = currentUser.username || '';
+    profileInputBio.value = currentUser.bio || '';
+    profileModal.style.display = 'flex';
+  }
+
+  function closeProfileModal() {
+    profileModal.style.display = 'none';
+  }
+
+  // Voice Recording Functions (Zalo / Messenger Style)
+  async function startVoiceRecording() {
+    try {
+      voiceMediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      voiceMediaRecorder = new MediaRecorder(voiceMediaStream);
+      voiceAudioChunks = [];
+
+      voiceMediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          voiceAudioChunks.push(e.data);
+        }
+      };
+
+      voiceMediaRecorder.start();
+      voiceRecordSeconds = 0;
+      recordingTime.textContent = '00:00';
+      voiceRecordingBar.style.display = 'flex';
+      chatInputToolbar.style.display = 'none';
+
+      clearInterval(voiceRecordTimer);
+      voiceRecordTimer = setInterval(() => {
+        voiceRecordSeconds++;
+        const mins = Math.floor(voiceRecordSeconds / 60).toString().padStart(2, '0');
+        const secs = (voiceRecordSeconds % 60).toString().padStart(2, '0');
+        recordingTime.textContent = `${mins}:${secs}`;
+      }, 1000);
+    } catch (err) {
+      alert('Không thể truy cập Microphone để ghi âm. Vui lòng cấp quyền Microphone trong trình duyệt!');
+    }
+  }
+
+  function cancelVoiceRecording() {
+    clearInterval(voiceRecordTimer);
+    if (voiceMediaRecorder && voiceMediaRecorder.state !== 'inactive') {
+      voiceMediaRecorder.stop();
+    }
+    if (voiceMediaStream) {
+      voiceMediaStream.getTracks().forEach(t => t.stop());
+      voiceMediaStream = null;
+    }
+    voiceAudioChunks = [];
+    voiceRecordingBar.style.display = 'none';
+    chatInputToolbar.style.display = 'flex';
+  }
+
+  async function sendVoiceRecording() {
+    if (!voiceMediaRecorder || voiceMediaRecorder.state === 'inactive') return;
+    clearInterval(voiceRecordTimer);
+
+    voiceMediaRecorder.onstop = async () => {
+      if (voiceMediaStream) {
+        voiceMediaStream.getTracks().forEach(t => t.stop());
+        voiceMediaStream = null;
+      }
+
+      if (voiceAudioChunks.length === 0) {
+        cancelVoiceRecording();
+        return;
+      }
+
+      const audioBlob = new Blob(voiceAudioChunks, { type: 'audio/webm' });
+      voiceAudioChunks = [];
+      voiceRecordingBar.style.display = 'none';
+      chatInputToolbar.style.display = 'flex';
+
+      const formData = new FormData();
+      formData.append('file', audioBlob, `voice_${Date.now()}.webm`);
+
+      try {
+        const uploadRes = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData
+        });
+        const uploadData = await uploadRes.json();
+        if (uploadData.url && socket && currentTarget) {
+          socket.emit('message:send', {
+            targetId: currentTarget.id,
+            isGroup: currentTarget.isGroup,
+            text: '',
+            fileUrl: uploadData.url,
+            fileName: 'audio_message.webm'
+          });
+        }
+      } catch (err) {
+        alert('Gửi tin nhắn thoại thất bại, vui lòng thử lại!');
+      }
+    };
+
+    voiceMediaRecorder.stop();
   }
 
   // Open Create Group Modal
@@ -1412,7 +1638,7 @@
         status: isGroup ? 'Nhóm trò chuyện' : (isOnline ? 'Đang hoạt động' : 'Ngoại tuyến'),
         bio: subtext
       });
-      if (window.innerWidth <= 680) {
+      if (window.innerWidth <= 768) {
         sidebarLeft.classList.add('hidden-mobile');
       }
     });
@@ -1427,6 +1653,10 @@
     typingBubble.style.display = 'none';
 
     unreadCounts[target.id] = 0;
+
+    if (window.innerWidth <= 768) {
+      sidebarLeft.classList.add('hidden-mobile');
+    }
 
     // Header
     chatTargetAvatar.src = target.avatar;
@@ -1509,11 +1739,38 @@
       `;
     }
 
-    let imageHtml = '';
+    let mediaHtml = '';
     if (msg.imageUrl && !msg.recalled) {
-      imageHtml = `
+      mediaHtml += `
         <img src="${msg.imageUrl}" alt="Đính kèm" class="message-image" loading="lazy">
       `;
+    }
+    if (msg.fileUrl && !msg.recalled) {
+      const isAudio = msg.fileName === 'audio_message.webm' || /\.(webm|mp3|wav|ogg|m4a)$/i.test(msg.fileUrl);
+      if (isAudio) {
+        mediaHtml += `
+          <div class="audio-message-bubble" data-audio-src="${msg.fileUrl}">
+            <button type="button" class="audio-play-btn" title="Phát tin nhắn thoại">▶️</button>
+            <div class="audio-meta">
+              <div class="audio-progress-bar">
+                <div class="audio-progress-fill"></div>
+              </div>
+              <span class="audio-duration">0:00</span>
+            </div>
+            <audio src="${msg.fileUrl}" preload="metadata" style="display: none;"></audio>
+          </div>
+        `;
+      } else {
+        mediaHtml += `
+          <a href="${msg.fileUrl}" target="_blank" download class="file-attachment-bubble">
+            <span class="file-icon">📄</span>
+            <div class="file-info">
+              <span class="file-name">${escapeHTML(msg.fileName || 'Tài liệu đính kèm')}</span>
+              <span class="file-action">Nhấn để tải về</span>
+            </div>
+          </a>
+        `;
+      }
     }
 
     const timeFormatted = formatTimestamp(msg.timestamp);
@@ -1539,7 +1796,7 @@
         <div class="message-bubble ${msg.recalled ? 'recalled' : ''}">
           ${replyHtml}
           ${msg.recalled ? '<i>Tin nhắn đã được thu hồi</i>' : (msg.text ? linkify(escapeHTML(msg.text)) : '')}
-          ${imageHtml}
+          ${mediaHtml}
         </div>
         <div class="message-meta">
           <span>${timeFormatted}</span>
@@ -1560,6 +1817,67 @@
       imgEl.addEventListener('click', () => {
         lightboxImg.src = msg.imageUrl;
         lightboxModal.style.display = 'flex';
+      });
+    }
+
+    const audioContainer = row.querySelector('.audio-message-bubble');
+    if (audioContainer) {
+      const audioEl = audioContainer.querySelector('audio');
+      const playBtn = audioContainer.querySelector('.audio-play-btn');
+      const progressFill = audioContainer.querySelector('.audio-progress-fill');
+      const durationSpan = audioContainer.querySelector('.audio-duration');
+      const progressBar = audioContainer.querySelector('.audio-progress-bar');
+
+      audioEl.addEventListener('loadedmetadata', () => {
+        const d = Math.round(audioEl.duration);
+        const mins = Math.floor(d / 60);
+        const secs = (d % 60).toString().padStart(2, '0');
+        durationSpan.textContent = `${mins}:${secs}`;
+      });
+
+      playBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (audioEl.paused) {
+          document.querySelectorAll('audio').forEach(a => {
+            if (a !== audioEl) {
+              a.pause();
+              const p = a.parentElement.querySelector('.audio-play-btn');
+              if (p) p.textContent = '▶️';
+            }
+          });
+          audioEl.play();
+          playBtn.textContent = '⏸️';
+        } else {
+          audioEl.pause();
+          playBtn.textContent = '▶️';
+        }
+      });
+
+      audioEl.addEventListener('timeupdate', () => {
+        if (!audioEl.duration) return;
+        const pct = (audioEl.currentTime / audioEl.duration) * 100;
+        progressFill.style.width = `${pct}%`;
+        const curr = Math.round(audioEl.currentTime);
+        const mins = Math.floor(curr / 60);
+        const secs = (curr % 60).toString().padStart(2, '0');
+        const total = Math.round(audioEl.duration);
+        const tm = Math.floor(total / 60);
+        const ts = (total % 60).toString().padStart(2, '0');
+        durationSpan.textContent = `${mins}:${secs} / ${tm}:${ts}`;
+      });
+
+      audioEl.addEventListener('ended', () => {
+        playBtn.textContent = '▶️';
+        progressFill.style.width = '0%';
+      });
+
+      progressBar.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const rect = progressBar.getBoundingClientRect();
+        const clickPos = (e.clientX - rect.left) / rect.width;
+        if (audioEl.duration) {
+          audioEl.currentTime = clickPos * audioEl.duration;
+        }
       });
     }
 
