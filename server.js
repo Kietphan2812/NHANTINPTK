@@ -425,6 +425,11 @@ io.on('connection', (socket) => {
   });
 });
 
+// Fallback for SPA - serve index.html
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Chat app running at http://localhost:${PORT}`);
 });
