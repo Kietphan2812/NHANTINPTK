@@ -85,8 +85,23 @@ function safeUser(u, isOnline = false) {
 }
 
 // ===================================================================
-// SQLITE DATABASE INITIALIZATION (BUILT-IN node:sqlite)
+// NEON CLOUD POSTGRESQL & SQLITE DUAL PERSISTENCE
 // ===================================================================
+const { Pool } = require('pg');
+const NEON_DB_URL = process.env.DATABASE_URL || 'postgresql://neondb_owner:npg_8DevTZUmg4ja@ep-withered-meadow-b5o6uv6v-pooler.c-7.us-east-2.aws.neon.tech/neondb?sslmode=require';
+
+const pgPool = new Pool({
+  connectionString: NEON_DB_URL,
+  ssl: { rejectUnauthorized: false }
+});
+
+function pgRun(sql, params = []) {
+  pgPool.query(sql, params).catch(err => {
+    console.error('PostgreSQL query error:', err.message);
+  });
+}
+
+// SQLITE DATABASE INITIALIZATION (BUILT-IN node:sqlite)
 let sqliteDb = null;
 try {
   const { DatabaseSync } = require('node:sqlite');
@@ -229,6 +244,113 @@ if (sqliteDb) {
   }
 }
 
+// Startup Neon Cloud PostgreSQL sync
+async function initNeonCloudDatabase() {
+  try {
+    const client = await pgPool.connect();
+    console.log('🐘 Neon Cloud PostgreSQL connected successfully!');
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        tag TEXT,
+        username TEXT UNIQUE NOT NULL,
+        phone TEXT UNIQUE NOT NULL,
+        password TEXT NOT NULL,
+        avatar TEXT,
+        bio TEXT,
+        friends TEXT DEFAULT '[]',
+        status TEXT DEFAULT 'offline',
+        last_seen TEXT,
+        gender TEXT DEFAULT 'Nam',
+        dob TEXT DEFAULT '28 tháng 12, 2004',
+        cover TEXT,
+        settings TEXT DEFAULT '{}'
+      );
+
+      CREATE TABLE IF NOT EXISTS rooms (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        creator_id TEXT,
+        creator_name TEXT,
+        avatar TEXT,
+        description TEXT,
+        members TEXT DEFAULT '[]',
+        created_at BIGINT
+      );
+
+      CREATE TABLE IF NOT EXISTS messages (
+        id TEXT PRIMARY KEY,
+        sender_id TEXT NOT NULL,
+        sender_name TEXT,
+        sender_avatar TEXT,
+        target_id TEXT NOT NULL,
+        is_group INTEGER DEFAULT 0,
+        text TEXT,
+        image_url TEXT,
+        file_url TEXT,
+        file_name TEXT,
+        reply_to TEXT,
+        reactions TEXT DEFAULT '{}',
+        is_pinned INTEGER DEFAULT 0,
+        recalled INTEGER DEFAULT 0,
+        timestamp BIGINT NOT NULL,
+        message_type TEXT DEFAULT 'normal',
+        extra_data TEXT DEFAULT '{}'
+      );
+
+      CREATE TABLE IF NOT EXISTS friend_requests (
+        id TEXT PRIMARY KEY,
+        sender_id TEXT NOT NULL,
+        receiver_id TEXT NOT NULL,
+        created_at BIGINT NOT NULL,
+        UNIQUE(sender_id, receiver_id)
+      );
+    `);
+
+    // Load and sync users from Neon Cloud PostgreSQL
+    const pgUsers = await client.query('SELECT * FROM users');
+    if (pgUsers.rows && pgUsers.rows.length > 0) {
+      console.log(`Synced ${pgUsers.rows.length} users from Neon Cloud PostgreSQL`);
+      pgUsers.rows.forEach(u => {
+        if (sqliteDb) {
+          try {
+            sqliteDb.prepare(`
+              INSERT OR REPLACE INTO users (id, name, tag, username, phone, password, avatar, bio, friends, status, last_seen, gender, dob, cover, settings)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `).run(
+              u.id, u.name, u.tag || `@${u.username}`, u.username, u.phone, u.password || '123',
+              u.avatar || '', u.bio || '', typeof u.friends === 'string' ? u.friends : JSON.stringify(u.friends || []),
+              'offline', u.last_seen || new Date().toISOString(), u.gender || 'Nam', u.dob || '28 tháng 12, 2004',
+              u.cover || '', typeof u.settings === 'string' ? u.settings : JSON.stringify(u.settings || {})
+            );
+          } catch (e) {}
+        }
+        const existingJson = jsonDb.users.find(x => x.id === u.id);
+        if (existingJson) {
+          Object.assign(existingJson, u, {
+            friends: typeof u.friends === 'string' ? JSON.parse(u.friends || '[]') : (u.friends || []),
+            settings: typeof u.settings === 'string' ? JSON.parse(u.settings || '{}') : (u.settings || {})
+          });
+        } else {
+          jsonDb.users.push({
+            ...u,
+            friends: typeof u.friends === 'string' ? JSON.parse(u.friends || '[]') : (u.friends || []),
+            settings: typeof u.settings === 'string' ? JSON.parse(u.settings || '{}') : (u.settings || {})
+          });
+        }
+      });
+      saveJSONDB(jsonDb);
+    }
+
+    client.release();
+  } catch (err) {
+    console.warn('⚠️ Neon PostgreSQL connection warning:', err.message);
+  }
+}
+initNeonCloudDatabase();
+
 // Unified Database Helpers
 function dbGetAllUsers() {
   if (sqliteDb) {
@@ -363,6 +485,44 @@ function dbInsertUser(user) {
   jsonDb.users = (jsonDb.users || []).filter(u => u.id !== user.id);
   jsonDb.users.push(user);
   saveJSONDB(jsonDb);
+
+  // Sync to Neon Cloud PostgreSQL
+  pgRun(`
+    INSERT INTO users (id, name, tag, username, phone, password, avatar, bio, friends, status, last_seen, gender, dob, cover, settings)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+    ON CONFLICT (id) DO UPDATE SET
+      name = EXCLUDED.name,
+      tag = EXCLUDED.tag,
+      username = EXCLUDED.username,
+      phone = EXCLUDED.phone,
+      password = EXCLUDED.password,
+      avatar = EXCLUDED.avatar,
+      bio = EXCLUDED.bio,
+      friends = EXCLUDED.friends,
+      status = EXCLUDED.status,
+      last_seen = EXCLUDED.last_seen,
+      gender = EXCLUDED.gender,
+      dob = EXCLUDED.dob,
+      cover = EXCLUDED.cover,
+      settings = EXCLUDED.settings
+  `, [
+    user.id, user.name, user.tag, user.username, user.phone, user.password,
+    user.avatar, user.bio, JSON.stringify(user.friends || []), 'offline', user.lastSeen || new Date().toISOString(),
+    user.gender || 'Nam', user.dob || '28 tháng 12, 2004', user.cover || '', JSON.stringify(user.settings || {})
+  ]);
+}
+
+function dbUpdateUserPassword(userId, newPassword) {
+  if (sqliteDb) {
+    try {
+      sqliteDb.prepare('UPDATE users SET password = ? WHERE id = ?').run(newPassword, userId);
+    } catch (e) {}
+  }
+  const u = jsonDb.users.find(x => x.id === userId);
+  if (u) u.password = newPassword;
+  saveJSONDB(jsonDb);
+
+  pgRun('UPDATE users SET password = $1 WHERE id = $2', [newPassword, userId]);
 }
 
 function dbUpdateUserFriends(userId, friendsArr) {
@@ -372,6 +532,8 @@ function dbUpdateUserFriends(userId, friendsArr) {
   const u = jsonDb.users.find(x => x.id === userId);
   if (u) u.friends = friendsArr;
   saveJSONDB(jsonDb);
+
+  pgRun('UPDATE users SET friends = $1 WHERE id = $2', [JSON.stringify(friendsArr), userId]);
 }
 
 function dbGetFriendRequestsForUser(userId) {
@@ -500,6 +662,20 @@ function dbInsertMessage(msg) {
   }
   jsonDb.messages.push(msg);
   saveJSONDB(jsonDb);
+
+  // Sync message to Neon Cloud PostgreSQL
+  pgRun(`
+    INSERT INTO messages (id, sender_id, sender_name, sender_avatar, target_id, is_group, text, image_url, file_url, file_name, reply_to, reactions, is_pinned, recalled, timestamp, message_type, extra_data)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+    ON CONFLICT (id) DO NOTHING
+  `, [
+    msg.id, msg.senderId, msg.senderName, msg.senderAvatar, msg.targetId,
+    msg.isGroup ? 1 : 0, msg.text || '', msg.imageUrl, msg.fileUrl, msg.fileName,
+    msg.replyTo ? JSON.stringify(msg.replyTo) : null,
+    JSON.stringify(msg.reactions || {}), msg.isPinned ? 1 : 0, msg.recalled ? 1 : 0, msg.timestamp,
+    msg.messageType || 'normal',
+    msg.extraData ? (typeof msg.extraData === 'string' ? msg.extraData : JSON.stringify(msg.extraData)) : '{}'
+  ]);
 }
 
 function dbGetMessages(targetId, currentUserId, isGroup) {
@@ -891,6 +1067,11 @@ app.post('/api/users/profile', async (req, res) => {
   u.cover = newCover;
   u.phone = newPhone;
   saveJSONDB(jsonDb);
+
+  // Sync profile update to Neon Cloud PostgreSQL
+  pgRun('UPDATE users SET name = $1, bio = $2, avatar = $3, gender = $4, dob = $5, cover = $6, phone = $7 WHERE id = $8', [
+    newName, newBio, newAvatar, newGender, newDob, newCover, newPhone, id
+  ]);
 
   const updatedUser = dbFindUserById(id);
   io.emit('users:list_updated', dbGetAllUsers().map(x => safeUser(x, isUserOnline(x.id))));

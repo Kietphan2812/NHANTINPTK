@@ -16,3 +16,5 @@ services:
         value: WR2xJMwT27mWJjfIjwoAqMbuF8M
       - key: CLOUDINARY_URL
         value: cloudinary://883671741882845:WR2xJMwT27mWJjfIjwoAqMbuF8M@qfgja134
+      - key: DATABASE_URL
+        value: postgresql://neondb_owner:npg_8DevTZUmg4ja@ep-withered-meadow-b5o6uv6v-pooler.c-7.us-east-2.aws.neon.tech/neondb?sslmode=require
