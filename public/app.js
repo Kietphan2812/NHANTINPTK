@@ -122,6 +122,63 @@
   const sharedMediaGrid = document.getElementById('shared-media-grid');
   const btnUnfriend = document.getElementById('btn-unfriend');
   const btnDeleteGroup = document.getElementById('btn-delete-group');
+  const btnLeaveGroup = document.getElementById('btn-leave-group');
+  const btnClearHistory = document.getElementById('btn-clear-history');
+  const btnEditContactName = document.getElementById('btn-edit-contact-name');
+  const btnPinConv = document.getElementById('btn-pin-conv');
+  const btnMuteNotif = document.getElementById('btn-mute-notif');
+  const rowReminderList = document.getElementById('row-reminder-list');
+  const btnViewAllMedia = document.getElementById('btn-view-all-media');
+  const btnNamecard = document.getElementById('btn-namecard');
+  const btnQuickReply = document.getElementById('btn-quick-reply');
+  const btnReminder = document.getElementById('btn-reminder');
+  const btnZcloud = document.getElementById('rail-btn-zcloud');
+
+  // New Modals & Elements
+  const reminderModal = document.getElementById('reminder-modal');
+  const btnCloseReminder = document.getElementById('btn-close-reminder');
+  const reminderForm = document.getElementById('reminder-form');
+  const reminderTitleInput = document.getElementById('reminder-title-input');
+  const reminderTimeInput = document.getElementById('reminder-time-input');
+  const reminderRepeatInput = document.getElementById('reminder-repeat-input');
+
+  const reminderListModal = document.getElementById('reminder-list-modal');
+  const btnCloseReminderList = document.getElementById('btn-close-reminder-list');
+  const reminderItemsContainer = document.getElementById('reminder-items-container');
+  const btnOpenCreateReminderFromList = document.getElementById('btn-open-create-reminder-from-list');
+
+  const quickReplyPopup = document.getElementById('quick-reply-popup');
+  const btnCloseQuickReply = document.getElementById('btn-close-quick-reply');
+  const quickReplyList = document.getElementById('quick-reply-list');
+  const addQuickReplyForm = document.getElementById('add-quick-reply-form');
+  const addQuickReplyInput = document.getElementById('add-quick-reply-input');
+
+  const shareContactModal = document.getElementById('share-contact-modal');
+  const btnCloseShareContact = document.getElementById('btn-close-share-contact');
+  const shareContactList = document.getElementById('share-contact-list');
+
+  const editNicknameModal = document.getElementById('edit-nickname-modal');
+  const btnCloseNickname = document.getElementById('btn-close-nickname');
+  const editNicknameForm = document.getElementById('edit-nickname-form');
+  const inputNickname = document.getElementById('input-nickname');
+  const btnResetNickname = document.getElementById('btn-reset-nickname');
+
+  const mediaGalleryModal = document.getElementById('media-gallery-modal');
+  const btnCloseGallery = document.getElementById('btn-close-gallery');
+  const galleryTabs = document.querySelectorAll('.gallery-tab-btn');
+  const galleryContentArea = document.getElementById('gallery-content-area');
+  const galleryPhotoCount = document.getElementById('gallery-photo-count');
+  const galleryFileCount = document.getElementById('gallery-file-count');
+  const galleryLinkCount = document.getElementById('gallery-link-count');
+
+  const addMemberModal = document.getElementById('add-member-modal');
+  const btnCloseAddMember = document.getElementById('btn-close-add-member');
+  const addMemberList = document.getElementById('add-member-list');
+  const btnConfirmAddMembers = document.getElementById('btn-confirm-add-members');
+  const btnOpenAddMember = document.getElementById('btn-open-add-member');
+  const groupMembersSection = document.getElementById('group-members-section');
+  const groupMemberCount = document.getElementById('group-member-count');
+  const groupMembersList = document.getElementById('group-members-list');
 
   // Lightbox
   const lightboxModal = document.getElementById('lightbox-modal');
@@ -203,8 +260,44 @@
     return audioCtx;
   }
 
-  function playNotificationDing() {
+  const CLOUD_AVATAR = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><linearGradient id="cg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%230068ff"/><stop offset="100%" stop-color="%2300a8ff"/></linearGradient></defs><circle cx="50" cy="50" r="50" fill="url(%23cg)"/><path d="M68 53h-2.5A16 16 0 1 0 34 68h34a10 10 0 0 0 0-15z" fill="white"/></svg>';
+
+  function getUserSettings() {
+    if (!currentUser) return { pinnedConversations: [], mutedConversations: [], aliases: {}, quickReplies: [] };
+    if (!currentUser.settings || typeof currentUser.settings !== 'object') {
+      currentUser.settings = { pinnedConversations: [], mutedConversations: [], aliases: {}, quickReplies: [] };
+    }
+    if (!Array.isArray(currentUser.settings.pinnedConversations)) currentUser.settings.pinnedConversations = [];
+    if (!Array.isArray(currentUser.settings.mutedConversations)) currentUser.settings.mutedConversations = [];
+    if (!currentUser.settings.aliases || typeof currentUser.settings.aliases !== 'object') currentUser.settings.aliases = {};
+    if (!Array.isArray(currentUser.settings.quickReplies)) currentUser.settings.quickReplies = [];
+    return currentUser.settings;
+  }
+
+  function saveUserSettings() {
+    if (!currentUser) return;
+    const settings = getUserSettings();
+    localStorage.setItem('zalochat_user', JSON.stringify(currentUser));
+    if (socket) {
+      socket.emit('user:update_settings', { settings });
+    }
+  }
+
+  function getDisplayName(userId, originalName) {
+    if (!userId || !originalName) return originalName || '';
+    const settings = getUserSettings();
+    if (settings.aliases && settings.aliases[userId]) {
+      return settings.aliases[userId];
+    }
+    return originalName;
+  }
+
+  function playNotificationDing(partnerId = null) {
     if (!isSoundEnabled) return;
+    if (partnerId) {
+      const settings = getUserSettings();
+      if (settings.mutedConversations.includes(partnerId)) return;
+    }
     try {
       const ctx = getAudioContext();
       const now = ctx.currentTime;
@@ -773,12 +866,9 @@
       });
     }
 
-    // Rail Feature Shortcuts (zCloud, Settings, Todo, etc.)
-    const btnZcloud = document.getElementById('rail-btn-zcloud');
+    // Rail Feature Shortcuts (Cloud của tôi, Settings, Todo, etc.)
     if (btnZcloud) {
-      btnZcloud.addEventListener('click', () => {
-        alert('Cloud của tôi: Nơi lưu trữ an toàn hình ảnh, văn bản và tập tin cá nhân!');
-      });
+      btnZcloud.addEventListener('click', openCloudChat);
     }
     const btnRailSettings = document.getElementById('btn-rail-settings');
     if (btnRailSettings) {
@@ -818,6 +908,17 @@
       });
     }
 
+    // New Toolbar Actions (Namecard, Quick Reply, Reminder)
+    if (btnNamecard) {
+      btnNamecard.addEventListener('click', openShareContactModal);
+    }
+    if (btnQuickReply) {
+      btnQuickReply.addEventListener('click', toggleQuickReplyPopup);
+    }
+    if (btnReminder) {
+      btnReminder.addEventListener('click', openReminderModal);
+    }
+
     // Floating Scroll to Bottom
     const btnScrollBottom = document.getElementById('btn-scroll-bottom');
     if (btnScrollBottom && messagesContainer) {
@@ -849,23 +950,173 @@
       });
     }
 
-    // Right Sidebar Quick Actions
-    const btnMuteNotif = document.getElementById('btn-mute-notif');
+    // Right Sidebar Quick Actions (Mute, Pin, Create Group, Nickname, Reminders, Gallery, Danger)
     if (btnMuteNotif) {
-      btnMuteNotif.addEventListener('click', () => {
-        alert('Đã tắt thông báo cho cuộc trò chuyện này!');
-      });
+      btnMuteNotif.addEventListener('click', toggleMuteCurrentConversation);
     }
-    const btnPinConv = document.getElementById('btn-pin-conv');
     if (btnPinConv) {
-      btnPinConv.addEventListener('click', () => {
-        alert('Đã ghim cuộc trò chuyện lên đầu danh sách!');
-      });
+      btnPinConv.addEventListener('click', togglePinCurrentConversation);
     }
     const btnCreateGroupWith = document.getElementById('btn-create-group-with');
     if (btnCreateGroupWith) {
       btnCreateGroupWith.addEventListener('click', () => {
         btnOpenCreateGroup.click();
+      });
+    }
+    if (btnEditContactName) {
+      btnEditContactName.addEventListener('click', openEditNicknameModal);
+    }
+    if (rowReminderList) {
+      rowReminderList.addEventListener('click', openReminderListModal);
+    }
+    if (btnViewAllMedia) {
+      btnViewAllMedia.addEventListener('click', openMediaGalleryModal);
+    }
+    if (btnClearHistory) {
+      btnClearHistory.addEventListener('click', clearCurrentHistory);
+    }
+    if (btnLeaveGroup) {
+      btnLeaveGroup.addEventListener('click', leaveCurrentGroup);
+    }
+    if (btnOpenAddMember) {
+      btnOpenAddMember.addEventListener('click', openAddMemberModal);
+    }
+
+    // Reminder Modals Listeners
+    if (btnCloseReminder) btnCloseReminder.addEventListener('click', () => { reminderModal.style.display = 'none'; });
+    if (reminderModal) reminderModal.addEventListener('click', (e) => { if (e.target === reminderModal) reminderModal.style.display = 'none'; });
+    if (reminderForm) {
+      reminderForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        if (!currentTarget || !socket) return;
+        const title = reminderTitleInput.value.trim();
+        const time = reminderTimeInput.value;
+        const repeat = reminderRepeatInput.value;
+        if (!title || !time) return;
+
+        socket.emit('message:send', {
+          targetId: currentTarget.id,
+          isGroup: currentTarget.isGroup,
+          text: `[Nhắc hẹn] ${title}`,
+          messageType: 'reminder',
+          extraData: {
+            title,
+            time,
+            repeat,
+            creatorName: currentUser.name
+          }
+        });
+
+        reminderModal.style.display = 'none';
+        reminderTitleInput.value = '';
+      });
+    }
+
+    if (btnCloseReminderList) btnCloseReminderList.addEventListener('click', () => { reminderListModal.style.display = 'none'; });
+    if (reminderListModal) reminderListModal.addEventListener('click', (e) => { if (e.target === reminderListModal) reminderListModal.style.display = 'none'; });
+    if (btnOpenCreateReminderFromList) {
+      btnOpenCreateReminderFromList.addEventListener('click', () => {
+        reminderListModal.style.display = 'none';
+        openReminderModal();
+      });
+    }
+
+    // Quick Reply Popup Listeners
+    if (btnCloseQuickReply) btnCloseQuickReply.addEventListener('click', () => { quickReplyPopup.style.display = 'none'; });
+    if (addQuickReplyForm) {
+      addQuickReplyForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const val = addQuickReplyInput.value.trim();
+        if (!val) return;
+        const settings = getUserSettings();
+        if (!settings.quickReplies || settings.quickReplies.length === 0) {
+          settings.quickReplies = [...getQuickReplies()];
+        }
+        if (!settings.quickReplies.includes(val)) {
+          settings.quickReplies.push(val);
+        }
+        saveUserSettings();
+        addQuickReplyInput.value = '';
+        renderQuickReplyList();
+      });
+    }
+    document.addEventListener('click', (e) => {
+      if (quickReplyPopup && quickReplyPopup.style.display === 'flex') {
+        if (!quickReplyPopup.contains(e.target) && e.target !== btnQuickReply && !btnQuickReply.contains(e.target)) {
+          quickReplyPopup.style.display = 'none';
+        }
+      }
+    });
+
+    // Share Contact Modal Listeners
+    if (btnCloseShareContact) btnCloseShareContact.addEventListener('click', () => { shareContactModal.style.display = 'none'; });
+    if (shareContactModal) shareContactModal.addEventListener('click', (e) => { if (e.target === shareContactModal) shareContactModal.style.display = 'none'; });
+
+    // Edit Nickname Modal Listeners
+    if (btnCloseNickname) btnCloseNickname.addEventListener('click', () => { editNicknameModal.style.display = 'none'; });
+    if (editNicknameModal) editNicknameModal.addEventListener('click', (e) => { if (e.target === editNicknameModal) editNicknameModal.style.display = 'none'; });
+    if (editNicknameForm) {
+      editNicknameForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        if (!currentTarget || currentTarget.isGroup || currentTarget.isCloud) return;
+        const newNick = inputNickname.value.trim();
+        const settings = getUserSettings();
+        if (newNick) {
+          settings.aliases[currentTarget.id] = newNick;
+        } else {
+          delete settings.aliases[currentTarget.id];
+        }
+        saveUserSettings();
+        editNicknameModal.style.display = 'none';
+        chatTargetName.textContent = getDisplayName(currentTarget.id, currentTarget.name);
+        infoName.textContent = getDisplayName(currentTarget.id, currentTarget.name);
+        renderSidebarContent();
+      });
+    }
+    if (btnResetNickname) {
+      btnResetNickname.addEventListener('click', () => {
+        if (!currentTarget || currentTarget.isGroup || currentTarget.isCloud) return;
+        const settings = getUserSettings();
+        delete settings.aliases[currentTarget.id];
+        saveUserSettings();
+        editNicknameModal.style.display = 'none';
+        chatTargetName.textContent = currentTarget.name;
+        infoName.textContent = currentTarget.name;
+        renderSidebarContent();
+      });
+    }
+
+    // Media Gallery Modal Listeners
+    if (btnCloseGallery) btnCloseGallery.addEventListener('click', () => { mediaGalleryModal.style.display = 'none'; });
+    if (mediaGalleryModal) mediaGalleryModal.addEventListener('click', (e) => { if (e.target === mediaGalleryModal) mediaGalleryModal.style.display = 'none'; });
+    if (galleryTabs) {
+      galleryTabs.forEach(t => {
+        t.addEventListener('click', () => {
+          galleryTabs.forEach(x => x.classList.remove('active'));
+          t.classList.add('active');
+          activeGalleryTab = t.dataset.galleryTab;
+          renderGalleryContent();
+        });
+      });
+    }
+
+    // Add Member Modal Listeners
+    if (btnCloseAddMember) btnCloseAddMember.addEventListener('click', () => { addMemberModal.style.display = 'none'; });
+    if (addMemberModal) addMemberModal.addEventListener('click', (e) => { if (e.target === addMemberModal) addMemberModal.style.display = 'none'; });
+    if (btnConfirmAddMembers) {
+      btnConfirmAddMembers.addEventListener('click', () => {
+        if (!currentTarget || !currentTarget.isGroup) return;
+        const checked = addMemberList.querySelectorAll('input[type="checkbox"]:checked');
+        const selectedIds = Array.from(checked).map(c => c.value);
+        if (selectedIds.length === 0) {
+          alert('Vui lòng chọn ít nhất một người bạn để thêm vào nhóm!');
+          return;
+        }
+        socket.emit('room:add_member', {
+          roomId: currentTarget.id,
+          memberIds: selectedIds
+        });
+        addMemberModal.style.display = 'none';
       });
     }
 
@@ -967,6 +1218,395 @@
         btnToggleCam.classList.toggle('off', !videoTrack.enabled);
       }
     });
+  }
+
+  // ===================================================================
+  // ZALO FEATURES IMPLEMENTATION (Cloud, Pin, Mute, Nickname, Reminders,
+  // Quick Replies, Share Contact, Media Gallery, Group Management)
+  // ===================================================================
+
+  // 1. Cloud Chat (Cloud của tôi)
+  function openCloudChat() {
+    if (!currentUser) return;
+    selectTarget({
+      id: currentUser.id,
+      name: 'Cloud của tôi',
+      rawName: 'Cloud của tôi',
+      avatar: CLOUD_AVATAR,
+      isGroup: false,
+      isCloud: true,
+      status: 'Lưu trữ đám mây cá nhân',
+      bio: 'Nơi lưu trữ ghi chú, hình ảnh, tập tin cá nhân an toàn giữa các thiết bị'
+    });
+  }
+
+  // 2. Pin Conversation
+  function togglePinCurrentConversation() {
+    if (!currentTarget || currentTarget.isCloud) return;
+    const settings = getUserSettings();
+    const idx = settings.pinnedConversations.indexOf(currentTarget.id);
+    if (idx > -1) {
+      settings.pinnedConversations.splice(idx, 1);
+    } else {
+      settings.pinnedConversations.push(currentTarget.id);
+    }
+    saveUserSettings();
+    updatePinMuteButtonUI();
+    renderSidebarContent();
+  }
+
+  // 3. Mute Conversation
+  function toggleMuteCurrentConversation() {
+    if (!currentTarget || currentTarget.isCloud) return;
+    const settings = getUserSettings();
+    const idx = settings.mutedConversations.indexOf(currentTarget.id);
+    if (idx > -1) {
+      settings.mutedConversations.splice(idx, 1);
+    } else {
+      settings.mutedConversations.push(currentTarget.id);
+    }
+    saveUserSettings();
+    updatePinMuteButtonUI();
+    renderSidebarContent();
+  }
+
+  function updatePinMuteButtonUI() {
+    if (!currentTarget) return;
+    const settings = getUserSettings();
+    const isPinned = settings.pinnedConversations.includes(currentTarget.id);
+    const isMuted = settings.mutedConversations.includes(currentTarget.id);
+
+    if (btnPinConv) {
+      btnPinConv.classList.toggle('active', isPinned);
+      const pinLabel = document.getElementById('btn-pin-label');
+      if (pinLabel) pinLabel.textContent = isPinned ? 'Bỏ ghim' : 'Ghim hội thoại';
+    }
+    if (btnMuteNotif) {
+      btnMuteNotif.classList.toggle('active', isMuted);
+      const muteLabel = document.getElementById('btn-mute-label');
+      if (muteLabel) muteLabel.textContent = isMuted ? 'Bật thông báo' : 'Tắt thông báo';
+    }
+  }
+
+  // 4. Edit Nickname Modal
+  function openEditNicknameModal() {
+    if (!currentTarget || currentTarget.isGroup || currentTarget.isCloud) return;
+    const settings = getUserSettings();
+    const currentAlias = settings.aliases[currentTarget.id] || '';
+    inputNickname.value = currentAlias || currentTarget.name;
+    editNicknameModal.style.display = 'flex';
+    inputNickname.focus();
+  }
+
+  // 5. Reminders
+  function openReminderModal() {
+    if (!currentTarget) return;
+    const d = new Date(Date.now() + 60 * 60 * 1000);
+    const tzOffset = d.getTimezoneOffset() * 60000;
+    const localISOTime = (new Date(d.getTime() - tzOffset)).toISOString().slice(0, 16);
+    reminderTimeInput.value = localISOTime;
+    reminderTitleInput.value = '';
+    reminderModal.style.display = 'flex';
+    reminderTitleInput.focus();
+  }
+
+  function openReminderListModal() {
+    if (!currentTarget) return;
+    reminderItemsContainer.innerHTML = '';
+    const reminders = activeMessages.filter(m => m.messageType === 'reminder' && !m.recalled);
+    if (reminders.length === 0) {
+      reminderItemsContainer.innerHTML = '<p style="color: var(--text-dim); text-align: center; padding: 20px;">Chưa có nhắc hẹn nào trong cuộc trò chuyện này.</p>';
+    } else {
+      reminders.forEach(rm => {
+        const ed = rm.extraData || {};
+        const timeStr = ed.time ? new Date(ed.time).toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'short' }) : 'Không rõ';
+        const item = document.createElement('div');
+        item.className = 'reminder-list-item';
+        item.innerHTML = `
+          <div class="reminder-item-left">
+            <h5>${escapeHTML(ed.title || rm.text || 'Nhắc hẹn')}</h5>
+            <p>${timeStr} • Tạo bởi ${escapeHTML(ed.creatorName || rm.senderName || 'Bạn')}</p>
+          </div>
+          <button class="btn-done-reminder" title="Hoàn thành">Đã xong</button>
+        `;
+        const btnDone = item.querySelector('.btn-done-reminder');
+        btnDone.addEventListener('click', () => {
+          btnDone.textContent = 'Đã hoàn thành';
+          btnDone.disabled = true;
+          btnDone.style.background = 'var(--text-dim)';
+        });
+        reminderItemsContainer.appendChild(item);
+      });
+    }
+    reminderListModal.style.display = 'flex';
+  }
+
+  // 6. Quick Replies
+  function getQuickReplies() {
+    const settings = getUserSettings();
+    if (settings.quickReplies && settings.quickReplies.length > 0) {
+      return settings.quickReplies;
+    }
+    return [
+      'Dạ tôi đang bận xíu, sẽ trả lời bạn ngay!',
+      'Ok bạn nha 👍',
+      'Alo bạn ơi, có đó không?',
+      'Đã nhận được thông tin, cảm ơn bạn nhiều!',
+      'Gọi lại cho mình khi rảnh nhé!',
+      'Mình đang trên đường đến rồi.'
+    ];
+  }
+
+  function renderQuickReplyList() {
+    quickReplyList.innerHTML = '';
+    const list = getQuickReplies();
+    list.forEach((txt, idx) => {
+      const item = document.createElement('div');
+      item.className = 'quick-reply-item';
+      item.innerHTML = `
+        <span class="quick-text">${escapeHTML(txt)}</span>
+        <button type="button" class="btn-del-quick" title="Xóa">✕</button>
+      `;
+      item.querySelector('.quick-text').addEventListener('click', () => {
+        messageInput.value = txt;
+        adjustTextareaHeight(messageInput);
+        quickReplyPopup.style.display = 'none';
+        handleSendMessage();
+      });
+      item.querySelector('.btn-del-quick').addEventListener('click', (e) => {
+        e.stopPropagation();
+        const settings = getUserSettings();
+        if (!settings.quickReplies || settings.quickReplies.length === 0) {
+          settings.quickReplies = [...list];
+        }
+        settings.quickReplies.splice(idx, 1);
+        saveUserSettings();
+        renderQuickReplyList();
+      });
+      quickReplyList.appendChild(item);
+    });
+  }
+
+  function toggleQuickReplyPopup() {
+    if (quickReplyPopup.style.display === 'none' || !quickReplyPopup.style.display) {
+      renderQuickReplyList();
+      quickReplyPopup.style.display = 'flex';
+    } else {
+      quickReplyPopup.style.display = 'none';
+    }
+  }
+
+  // 7. Share Contact Modal
+  function openShareContactModal() {
+    if (!currentUser || !currentTarget) return;
+    shareContactList.innerHTML = '';
+    const friendIds = currentUser.friends || [];
+    const friends = allUsers.filter(u => friendIds.includes(u.id) && u.id !== currentUser.id);
+
+    if (friends.length === 0) {
+      shareContactList.innerHTML = '<p style="color: var(--text-dim); text-align: center; padding: 16px;">Chưa có bạn bè trong danh bạ để gửi danh thiếp.</p>';
+    } else {
+      friends.forEach(f => {
+        const row = document.createElement('div');
+        row.className = 'search-user-card';
+        row.innerHTML = `
+          <div class="search-user-meta">
+            <img src="${f.avatar}" alt="${escapeHTML(f.name)}">
+            <div class="search-user-info">
+              <span class="search-user-name">${escapeHTML(getDisplayName(f.id, f.name))}</span>
+              <span class="search-user-phone">${escapeHTML(f.phone || '')}</span>
+            </div>
+          </div>
+          <button class="btn-card-action chat-btn" data-friend-id="${f.id}">Gửi</button>
+        `;
+        row.querySelector('.chat-btn').addEventListener('click', () => {
+          socket.emit('message:send', {
+            targetId: currentTarget.id,
+            isGroup: currentTarget.isGroup,
+            text: `[Danh thiếp] ${f.name}`,
+            messageType: 'contact_card',
+            extraData: {
+              id: f.id,
+              name: f.name,
+              avatar: f.avatar,
+              phone: f.phone,
+              tag: f.tag,
+              bio: f.bio
+            }
+          });
+          shareContactModal.style.display = 'none';
+        });
+        shareContactList.appendChild(row);
+      });
+    }
+    shareContactModal.style.display = 'flex';
+  }
+
+  // 8. Media Gallery Modal
+  let activeGalleryTab = 'photos';
+  function openMediaGalleryModal() {
+    if (!currentTarget) return;
+    activeGalleryTab = 'photos';
+    galleryTabs.forEach(t => t.classList.toggle('active', t.dataset.galleryTab === 'photos'));
+    renderGalleryContent();
+    mediaGalleryModal.style.display = 'flex';
+  }
+
+  function renderGalleryContent() {
+    const photos = activeMessages.filter(m => m.imageUrl && !m.recalled);
+    const files = activeMessages.filter(m => m.fileUrl && !m.recalled && !m.imageUrl);
+    const links = [];
+
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    activeMessages.forEach(m => {
+      if (m.text && !m.recalled) {
+        const matches = m.text.match(urlRegex);
+        if (matches) {
+          matches.forEach(url => links.push({ url, sender: m.senderName, time: m.timestamp }));
+        }
+      }
+    });
+
+    galleryPhotoCount.textContent = photos.length;
+    galleryFileCount.textContent = files.length;
+    galleryLinkCount.textContent = links.length;
+
+    galleryContentArea.innerHTML = '';
+
+    if (activeGalleryTab === 'photos') {
+      if (photos.length === 0) {
+        galleryContentArea.innerHTML = '<p style="color: var(--text-dim); text-align: center; padding: 40px;">Chưa có hình ảnh nào được chia sẻ.</p>';
+        return;
+      }
+      const grid = document.createElement('div');
+      grid.className = 'gallery-photo-grid';
+      photos.forEach(p => {
+        const item = document.createElement('div');
+        item.className = 'gallery-photo-item';
+        item.innerHTML = `<img src="${p.imageUrl}" alt="Media" loading="lazy">`;
+        item.addEventListener('click', () => {
+          lightboxImg.src = p.imageUrl;
+          lightboxModal.style.display = 'flex';
+        });
+        grid.appendChild(item);
+      });
+      galleryContentArea.appendChild(grid);
+    } else if (activeGalleryTab === 'files') {
+      if (files.length === 0) {
+        galleryContentArea.innerHTML = '<p style="color: var(--text-dim); text-align: center; padding: 40px;">Chưa có tập tin nào được gửi.</p>';
+        return;
+      }
+      const list = document.createElement('div');
+      list.className = 'gallery-file-list';
+      files.forEach(f => {
+        const item = document.createElement('div');
+        item.className = 'gallery-file-item';
+        item.innerHTML = `
+          <div class="gallery-file-left">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#0068ff" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            <div>
+              <div class="gallery-file-name">${escapeHTML(f.fileName || 'Tập tin')}</div>
+              <div class="gallery-file-meta">${formatTimestamp(f.timestamp)} • ${escapeHTML(f.senderName)}</div>
+            </div>
+          </div>
+          <a href="${f.fileUrl}" target="_blank" download class="gallery-file-download">Tải về</a>
+        `;
+        list.appendChild(item);
+      });
+      galleryContentArea.appendChild(list);
+    } else if (activeGalleryTab === 'links') {
+      if (links.length === 0) {
+        galleryContentArea.innerHTML = '<p style="color: var(--text-dim); text-align: center; padding: 40px;">Chưa có liên kết web nào được gửi.</p>';
+        return;
+      }
+      const list = document.createElement('div');
+      list.className = 'gallery-link-list';
+      links.forEach(l => {
+        const item = document.createElement('div');
+        item.className = 'gallery-link-item';
+        item.innerHTML = `
+          <a href="${l.url}" target="_blank" rel="noopener noreferrer" class="gallery-link-url">${escapeHTML(l.url)}</a>
+          <div class="gallery-file-meta">${formatTimestamp(l.time)} • ${escapeHTML(l.sender)}</div>
+        `;
+        list.appendChild(item);
+      });
+      galleryContentArea.appendChild(list);
+    }
+  }
+
+  // 9. Clear History
+  function clearCurrentHistory() {
+    if (!currentTarget) return;
+    const name = currentTarget.name;
+    if (confirm(`Bạn có chắc chắn muốn xóa toàn bộ lịch sử trò chuyện với "${name}"? Thao tác này không thể hoàn tác.`)) {
+      socket.emit('chat:clear_history', {
+        targetId: currentTarget.id,
+        isGroup: currentTarget.isGroup
+      });
+    }
+  }
+
+  // 10. Group Members & Add Member Modal
+  function renderGroupMembers(room) {
+    if (!groupMemberCount || !groupMembersList) return;
+    const members = room.members || [];
+    groupMemberCount.textContent = members.length;
+    groupMembersList.innerHTML = '';
+
+    members.forEach(mId => {
+      const u = allUsers.find(x => x.id === mId) || (mId === currentUser.id ? currentUser : null);
+      if (!u) return;
+      const isCreator = room.creatorId === mId;
+      const item = document.createElement('div');
+      item.className = 'group-member-item';
+      item.innerHTML = `
+        <div class="group-member-left">
+          <img src="${u.avatar}" alt="${escapeHTML(u.name)}" class="group-member-avatar">
+          <span class="group-member-name">${escapeHTML(getDisplayName(u.id, u.name))}${u.id === currentUser.id ? ' (Bạn)' : ''}</span>
+        </div>
+        <span class="group-member-role">${isCreator ? 'Trưởng nhóm' : 'Thành viên'}</span>
+      `;
+      groupMembersList.appendChild(item);
+    });
+  }
+
+  function openAddMemberModal() {
+    if (!currentTarget || !currentTarget.isGroup) return;
+    const room = allRooms.find(r => r.id === currentTarget.id);
+    if (!room) return;
+    addMemberList.innerHTML = '';
+    const roomMembers = room.members || [];
+    const friendIds = currentUser.friends || [];
+    const nonMembers = allUsers.filter(u => friendIds.includes(u.id) && !roomMembers.includes(u.id));
+
+    if (nonMembers.length === 0) {
+      addMemberList.innerHTML = '<p style="color: var(--text-dim); text-align: center; padding: 12px;">Tất cả bạn bè của bạn đã tham gia nhóm này rồi.</p>';
+      btnConfirmAddMembers.style.display = 'none';
+    } else {
+      btnConfirmAddMembers.style.display = 'block';
+      nonMembers.forEach(f => {
+        const label = document.createElement('label');
+        label.className = 'friend-checkbox-item';
+        label.innerHTML = `
+          <input type="checkbox" value="${f.id}">
+          <img src="${f.avatar}" alt="${escapeHTML(f.name)}">
+          <span class="friend-checkbox-name">${escapeHTML(getDisplayName(f.id, f.name))} (${escapeHTML(f.phone || f.tag)})</span>
+        `;
+        addMemberList.appendChild(label);
+      });
+    }
+    addMemberModal.style.display = 'flex';
+  }
+
+  function leaveCurrentGroup() {
+    if (!currentTarget || !currentTarget.isGroup) return;
+    if (confirm(`Bạn có chắc chắn muốn rời nhóm trò chuyện "${currentTarget.name}"?`)) {
+      socket.emit('room:leave', { roomId: currentTarget.id });
+      currentTarget = null;
+      activeMessages = [];
+      messagesStream.innerHTML = '';
+      renderSidebarContent();
+    }
   }
 
   // Profile Modal Functions
@@ -1331,15 +1971,22 @@
       const partnerId = msg.isGroup ? msg.targetId : (msg.senderId === currentUser.id ? msg.targetId : msg.senderId);
 
       lastMessageMap[partnerId] = {
-        text: msg.recalled ? 'Tin nhắn đã được thu hồi' : (msg.text || (msg.imageUrl ? '[Hình ảnh]' : 'Tin nhắn mới')),
+        text: msg.recalled ? 'Tin nhắn đã được thu hồi' : (
+          msg.messageType === 'reminder' ? `[Nhắc hẹn] ${msg.extraData?.title || msg.text || ''}` :
+          msg.messageType === 'contact_card' ? `[Danh thiếp] ${msg.extraData?.name || ''}` :
+          (msg.text || (msg.imageUrl ? '[Hình ảnh]' : (msg.fileUrl ? '[Tập tin]' : 'Tin nhắn mới')))
+        ),
         timestamp: msg.timestamp
       };
 
       const isForCurrentChat = currentTarget && (
         (currentTarget.isGroup && msg.targetId === currentTarget.id) ||
         (!currentTarget.isGroup && (
-          (msg.senderId === currentTarget.id && msg.targetId === currentUser.id) ||
-          (msg.senderId === currentUser.id && msg.targetId === currentTarget.id)
+          (currentTarget.isCloud && msg.senderId === currentUser.id && msg.targetId === currentUser.id) ||
+          (!currentTarget.isCloud && (
+            (msg.senderId === currentTarget.id && msg.targetId === currentUser.id) ||
+            (msg.senderId === currentUser.id && msg.targetId === currentTarget.id)
+          ))
         ))
       );
 
@@ -1353,10 +2000,41 @@
       }
 
       if (msg.senderId !== currentUser.id) {
-        playNotificationDing();
+        playNotificationDing(partnerId);
       }
 
       renderSidebarContent();
+    });
+
+    socket.on('user:settings_updated', ({ settings }) => {
+      if (currentUser) currentUser.settings = settings;
+      localStorage.setItem('zalochat_user', JSON.stringify(currentUser));
+      renderSidebarContent();
+      updatePinMuteButtonUI();
+    });
+
+    socket.on('chat:history_cleared', ({ targetId, isGroup }) => {
+      const isCurrent = currentTarget && (
+        (isGroup && currentTarget.id === targetId) ||
+        (!isGroup && (currentTarget.id === targetId || (currentTarget.isCloud && targetId === currentUser.id)))
+      );
+      if (isCurrent) {
+        activeMessages = [];
+        renderMessages();
+        renderSharedMedia();
+      }
+      delete lastMessageMap[targetId];
+      renderSidebarContent();
+    });
+
+    socket.on('room:members_updated', ({ roomId, members }) => {
+      const r = allRooms.find(x => x.id === roomId);
+      if (r) {
+        r.members = members;
+        if (currentTarget && currentTarget.id === roomId) {
+          renderGroupMembers(r);
+        }
+      }
     });
 
     // Real-time typing indicators
@@ -1638,29 +2316,66 @@
     callTimerLabel.style.display = 'none';
   }
 
-  // Render Sidebar Content
+  // Render Sidebar Content (Zalo Style with Cloud của tôi, Pinning, and Muting)
   function renderSidebarContent() {
     convListContainer.innerHTML = '';
     const query = convSearchInput.value.toLowerCase().trim();
+    const settings = getUserSettings();
 
-    // 1. MESSAGES TAB: Conversations + Groups
+    // 1. MESSAGES TAB: Cloud của tôi + Pinned + Groups + Direct Chats
     if (currentSidebarTab === 'messages') {
+      const convItems = [];
+
+      // A. Cloud của tôi (Always available)
+      const cloudQueryMatch = !query || 'cloud của tôi'.includes(query) || 'truyền file'.includes(query) || 'lưu trữ'.includes(query);
+      if (cloudQueryMatch && currentUser) {
+        const lastCloud = lastMessageMap[currentUser.id];
+        convItems.push({
+          id: currentUser.id,
+          name: 'Cloud của tôi',
+          rawName: 'Cloud của tôi',
+          avatar: CLOUD_AVATAR,
+          isGroup: false,
+          isCloud: true,
+          subtext: lastCloud ? lastCloud.text : 'Lưu trữ cá nhân an toàn',
+          statusText: lastCloud ? formatTimestamp(lastCloud.timestamp) : '',
+          timestamp: lastCloud ? lastCloud.timestamp : Date.now(),
+          isOnline: true,
+          phone: null,
+          unread: unreadCounts[currentUser.id] || 0,
+          isPinned: true, // Cloud is pinned by default
+          isMuted: false
+        });
+      }
+
+      // B. Rooms / Groups
       allRooms.forEach(room => {
         if (query && !room.name.toLowerCase().includes(query)) return;
         const last = lastMessageMap[room.id];
-        renderConversationItem(
-          room.id,
-          room.name,
-          room.avatar,
-          true,
-          last ? last.text : 'Nhóm trò chuyện',
-          last ? formatTimestamp(last.timestamp) : 'Nhóm',
-          true,
-          null,
-          unreadCounts[room.id] || 0
-        );
+        const isPinned = settings.pinnedConversations.includes(room.id);
+        const isMuted = settings.mutedConversations.includes(room.id);
+        convItems.push({
+          id: room.id,
+          name: room.name,
+          rawName: room.name,
+          avatar: room.avatar,
+          isGroup: true,
+          isCloud: false,
+          subtext: last ? last.text : 'Nhóm trò chuyện',
+          statusText: last ? formatTimestamp(last.timestamp) : 'Nhóm',
+          timestamp: last ? last.timestamp : (room.createdAt || 0),
+          isOnline: true,
+          phone: null,
+          unread: unreadCounts[room.id] || 0,
+          isPinned,
+          isMuted,
+          creatorId: room.creatorId,
+          members: room.members,
+          description: room.description
+        });
       });
 
+      // C. Direct Friends & Users with chats
       const friendIds = currentUser.friends || [];
       const relevantUserIds = new Set([
         ...friendIds,
@@ -1669,44 +2384,69 @@
 
       const directUsers = allUsers.filter(u => relevantUserIds.has(u.id) && u.id !== currentUser.id);
 
-      directUsers.sort((a, b) => {
-        const timeA = lastMessageMap[a.id] ? lastMessageMap[a.id].timestamp : 0;
-        const timeB = lastMessageMap[b.id] ? lastMessageMap[b.id].timestamp : 0;
-        return timeB - timeA;
+      directUsers.forEach(u => {
+        const dispName = getDisplayName(u.id, u.name);
+        if (query && !dispName.toLowerCase().includes(query) && !u.name.toLowerCase().includes(query) && !(u.phone && u.phone.includes(query))) return;
+        const isOnline = u.status === 'online';
+        const last = lastMessageMap[u.id];
+        const isPinned = settings.pinnedConversations.includes(u.id);
+        const isMuted = settings.mutedConversations.includes(u.id);
+
+        convItems.push({
+          id: u.id,
+          name: dispName,
+          rawName: u.name,
+          avatar: u.avatar,
+          isGroup: false,
+          isCloud: false,
+          subtext: last ? last.text : (u.phone || 'Trò chuyện'),
+          statusText: last ? formatTimestamp(last.timestamp) : (isOnline ? 'Online' : 'Vừa xong'),
+          timestamp: last ? last.timestamp : 0,
+          isOnline,
+          phone: u.phone,
+          unread: unreadCounts[u.id] || 0,
+          isPinned,
+          isMuted,
+          bio: u.bio,
+          tag: u.tag
+        });
       });
 
-      if (directUsers.length === 0 && allRooms.length === 0) {
+      // Sort: Cloud first, then pinned items, then latest timestamp descending
+      convItems.sort((a, b) => {
+        if (a.isCloud) return -1;
+        if (b.isCloud) return 1;
+        if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
+        return b.timestamp - a.timestamp;
+      });
+
+      if (convItems.length === 0) {
         convListContainer.innerHTML = `
           <div class="empty-contacts-state">
-            <p>Chưa có cuộc trò chuyện nào.</p>
+            <p>Không tìm thấy cuộc trò chuyện nào.</p>
             <button class="primary-btn" id="btn-add-friend-empty">Tìm bạn bằng số điện thoại</button>
           </div>
         `;
         const btnEmpty = document.getElementById('btn-add-friend-empty');
-        if (btnEmpty) {
-          btnEmpty.addEventListener('click', () => {
-            btnOpenAddFriend.click();
-          });
-        }
+        if (btnEmpty) btnEmpty.addEventListener('click', () => btnOpenAddFriend.click());
         return;
       }
 
-      directUsers.forEach(u => {
-        if (query && !u.name.toLowerCase().includes(query) && !(u.phone && u.phone.includes(query))) return;
-        const isOnline = u.status === 'online';
-        const last = lastMessageMap[u.id];
-        const unread = unreadCounts[u.id] || 0;
-
+      convItems.forEach(item => {
         renderConversationItem(
-          u.id,
-          u.name,
-          u.avatar,
-          false,
-          last ? last.text : (u.phone || 'Trò chuyện'),
-          last ? formatTimestamp(last.timestamp) : (isOnline ? 'Online' : 'Vừa xong'),
-          isOnline,
-          u.phone,
-          unread
+          item.id,
+          item.name,
+          item.avatar,
+          item.isGroup,
+          item.subtext,
+          item.statusText,
+          item.isOnline,
+          item.phone,
+          item.unread,
+          item.isPinned,
+          item.isMuted,
+          item.isCloud,
+          item
         );
       });
     }
@@ -1724,48 +2464,52 @@
           </div>
         `;
         const btnEmpty = document.getElementById('btn-add-friend-empty');
-        if (btnEmpty) {
-          btnEmpty.addEventListener('click', () => {
-            btnOpenAddFriend.click();
-          });
-        }
+        if (btnEmpty) btnEmpty.addEventListener('click', () => btnOpenAddFriend.click());
         return;
       }
 
       convListContainer.innerHTML = `<div class="contacts-section-title">Bạn bè (${friends.length})</div>`;
 
       friends.forEach(u => {
-        if (query && !u.name.toLowerCase().includes(query) && !(u.phone && u.phone.includes(query))) return;
+        const dispName = getDisplayName(u.id, u.name);
+        if (query && !dispName.toLowerCase().includes(query) && !u.name.toLowerCase().includes(query) && !(u.phone && u.phone.includes(query))) return;
         const isOnline = u.status === 'online';
         renderConversationItem(
           u.id,
-          u.name,
+          dispName,
           u.avatar,
           false,
           `${u.phone || ''}${u.tag ? ' • ' + u.tag : ''}`,
           isOnline ? 'Online' : 'Vừa xong',
           isOnline,
           u.phone,
-          0
+          0,
+          false,
+          false,
+          false,
+          u
         );
       });
     }
   }
 
-  function renderConversationItem(id, name, avatar, isGroup, subtext, statusText, isOnline = false, phone = null, unread = 0) {
+  function renderConversationItem(id, name, avatar, isGroup, subtext, statusText, isOnline = false, phone = null, unread = 0, isPinned = false, isMuted = false, isCloud = false, itemData = {}) {
     const item = document.createElement('div');
     const isActive = currentTarget && currentTarget.id === id;
-    item.className = `conversation-item ${isActive ? 'active' : ''} ${unread > 0 ? 'has-unread' : ''}`;
+    item.className = `conversation-item ${isActive ? 'active' : ''} ${unread > 0 ? 'has-unread' : ''} ${isPinned ? 'is-pinned' : ''}`;
     
+    const pinBadgeHtml = isPinned ? `<span class="conv-pin-badge" title="Đã ghim">📌</span>` : '';
+    const muteBadgeHtml = isMuted ? `<span class="conv-mute-badge" title="Đã tắt thông báo">🔕</span>` : '';
+
     item.innerHTML = `
       <div class="avatar-wrapper">
-        <img src="${avatar}" alt="${name}" class="avatar">
-        ${!isGroup ? `<span class="status-indicator ${isOnline ? 'online' : ''}"></span>` : ''}
+        <img src="${avatar}" alt="${escapeHTML(name)}" class="avatar">
+        ${!isGroup && !isCloud ? `<span class="status-indicator ${isOnline ? 'online' : ''}"></span>` : ''}
       </div>
       <div class="conversation-meta">
         <div class="conv-top">
-          <span class="conv-name">${escapeHTML(name)}</span>
-          <span class="conv-time">${escapeHTML(statusText)}</span>
+          <span class="conv-name">${escapeHTML(name)} ${muteBadgeHtml}</span>
+          <span class="conv-time">${escapeHTML(statusText)} ${pinBadgeHtml}</span>
         </div>
         <div class="conv-bottom">
           <span class="conv-last-msg">${escapeHTML(subtext)}</span>
@@ -1776,15 +2520,22 @@
 
     item.addEventListener('click', () => {
       unreadCounts[id] = 0;
-      selectTarget({
-        id,
-        name,
-        avatar,
-        phone,
-        isGroup,
-        status: isGroup ? 'Nhóm trò chuyện' : (isOnline ? 'Đang hoạt động' : 'Ngoại tuyến'),
-        bio: subtext
-      });
+      if (isCloud) {
+        openCloudChat();
+      } else {
+        selectTarget({
+          id,
+          name,
+          rawName: itemData.rawName || name,
+          avatar,
+          phone,
+          isGroup,
+          isCloud: false,
+          creatorId: itemData.creatorId || null,
+          status: isGroup ? 'Nhóm trò chuyện' : (isOnline ? 'Đang hoạt động' : 'Ngoại tuyến'),
+          bio: itemData.bio || itemData.description || subtext
+        });
+      }
       if (window.innerWidth <= 768) {
         sidebarLeft.classList.add('hidden-mobile');
       }
@@ -1808,31 +2559,85 @@
     // Header
     chatTargetAvatar.src = target.avatar;
     chatTargetName.textContent = target.name;
-    updateHeaderStatus(target.status === 'Đang hoạt động' || target.isGroup);
+    updateHeaderStatus(target.status === 'Đang hoạt động' || target.isGroup || target.isCloud);
 
     // Sidebar Right
     infoAvatar.src = target.avatar;
     infoName.textContent = target.name;
     infoPhone.textContent = target.phone ? `Số điện thoại: ${target.phone}` : '';
     infoBio.textContent = target.bio || '';
-    infoChatType.textContent = target.isGroup ? 'Nhóm chung' : 'Trò chuyện 1-1';
+    infoChatType.textContent = target.isCloud ? 'Cloud cá nhân' : (target.isGroup ? 'Nhóm chung' : 'Trò chuyện 1-1');
     infoOnlineStatus.textContent = target.status;
 
     const infoSharedGroups = document.getElementById('info-shared-groups');
     if (infoSharedGroups) {
-      infoSharedGroups.textContent = target.isGroup ? 'Thành viên nhóm' : '41 nhóm chung';
+      infoSharedGroups.textContent = target.isGroup ? 'Thành viên nhóm' : (target.isCloud ? 'Lưu trữ cá nhân' : '41 nhóm chung');
     }
 
-    messageInput.placeholder = `Nhập @, tin nhắn tới ${target.name}...`;
+    // Controls visibility based on chat type (Cloud vs Group vs Direct)
+    const zaloProfileActions = document.querySelector('.zalo-profile-actions');
+    const rowSharedGroups = document.getElementById('row-shared-groups');
 
-    // Danger Actions Toggle
-    if (target.isGroup) {
-      btnDeleteGroup.style.display = 'block';
-      btnUnfriend.style.display = 'none';
-    } else {
+    if (target.isCloud) {
+      btnAudioCall.style.display = 'none';
+      btnVideoCall.style.display = 'none';
+      btnEditContactName.style.display = 'none';
+      if (zaloProfileActions) zaloProfileActions.style.display = 'none';
+      if (groupMembersSection) groupMembersSection.style.display = 'none';
+      if (rowSharedGroups) rowSharedGroups.style.display = 'none';
+
       btnDeleteGroup.style.display = 'none';
+      btnLeaveGroup.style.display = 'none';
+      btnUnfriend.style.display = 'none';
+      btnClearHistory.style.display = 'block';
+
+      messageInput.placeholder = 'Ghi chú, gửi file vào Cloud của tôi...';
+    } else if (target.isGroup) {
+      btnAudioCall.style.display = 'none';
+      btnVideoCall.style.display = 'none';
+      btnEditContactName.style.display = 'none';
+      if (zaloProfileActions) zaloProfileActions.style.display = 'flex';
+      if (rowSharedGroups) rowSharedGroups.style.display = 'flex';
+
+      const btnCreateGroupWith = document.getElementById('btn-create-group-with');
+      if (btnCreateGroupWith) btnCreateGroupWith.parentElement.style.display = 'none';
+
+      // Group Members
+      if (groupMembersSection) {
+        groupMembersSection.style.display = 'block';
+        const room = allRooms.find(r => r.id === target.id) || target;
+        renderGroupMembers(room);
+      }
+
+      const isCreator = target.creatorId === currentUser.id;
+      btnDeleteGroup.style.display = isCreator ? 'block' : 'none';
+      btnLeaveGroup.style.display = 'block';
+      btnUnfriend.style.display = 'none';
+      btnClearHistory.style.display = 'block';
+
+      messageInput.placeholder = `Nhập @, tin nhắn tới ${target.name}...`;
+    } else {
+      // 1-1 Direct Chat
+      btnAudioCall.style.display = 'inline-flex';
+      btnVideoCall.style.display = 'inline-flex';
+      btnEditContactName.style.display = 'inline-flex';
+      if (zaloProfileActions) zaloProfileActions.style.display = 'flex';
+      if (rowSharedGroups) rowSharedGroups.style.display = 'flex';
+
+      const btnCreateGroupWith = document.getElementById('btn-create-group-with');
+      if (btnCreateGroupWith) btnCreateGroupWith.parentElement.style.display = 'flex';
+
+      if (groupMembersSection) groupMembersSection.style.display = 'none';
+
+      btnDeleteGroup.style.display = 'none';
+      btnLeaveGroup.style.display = 'none';
       btnUnfriend.style.display = 'block';
+      btnClearHistory.style.display = 'block';
+
+      messageInput.placeholder = `Nhập @, tin nhắn tới ${target.name}...`;
     }
+
+    updatePinMuteButtonUI();
 
     socket.emit('chat:get_history', {
       targetId: target.id,
@@ -1844,7 +2649,11 @@
   }
 
   function updateHeaderStatus(isOnline) {
-    if (currentTarget.isGroup) {
+    if (currentTarget.isCloud) {
+      chatTargetIndicator.className = 'status-indicator online';
+      chatTargetSubtext.textContent = 'Lưu trữ đám mây cá nhân';
+      chatTargetSubtext.className = 'target-status online';
+    } else if (currentTarget.isGroup) {
       chatTargetIndicator.className = 'status-indicator online';
       chatTargetSubtext.textContent = 'Trò chuyện cùng mọi người';
       chatTargetSubtext.className = 'target-status online';
@@ -1861,6 +2670,23 @@
 
   function renderMessages() {
     messagesStream.innerHTML = '';
+
+    // If Cloud của tôi, show welcoming storage banner
+    if (currentTarget && currentTarget.isCloud) {
+      const banner = document.createElement('div');
+      banner.className = 'cloud-welcome-banner';
+      banner.innerHTML = `
+        <div class="cloud-banner-icon">
+          <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
+        </div>
+        <div class="cloud-banner-text">
+          <h4>Cloud của tôi</h4>
+          <p>Nơi lưu trữ an toàn văn bản, hình ảnh và tập tin cá nhân. Chỉ có bạn mới có thể truy cập nội dung này trên bất kỳ thiết bị nào.</p>
+        </div>
+      `;
+      messagesStream.appendChild(banner);
+    }
+
     let lastDate = null;
 
     activeMessages.forEach(msg => {
@@ -1889,6 +2715,44 @@
       replyHtml = `
         <div class="message-reply-preview">
           <b>${escapeHTML(msg.replyTo.senderName)}:</b> ${escapeHTML(msg.replyTo.text || '[Hình ảnh]')}
+        </div>
+      `;
+    }
+
+    // Rich Message Types (Reminder & Contact Card)
+    let richContentHtml = '';
+    if (!msg.recalled && msg.messageType === 'reminder' && msg.extraData) {
+      const ed = msg.extraData;
+      const timeStr = ed.time ? new Date(ed.time).toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'short' }) : 'Không rõ';
+      richContentHtml = `
+        <div class="reminder-card-bubble">
+          <div class="reminder-card-header">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <span>Nhắc Hẹn Zalo</span>
+          </div>
+          <div class="reminder-card-title">${escapeHTML(ed.title || msg.text || 'Nhắc hẹn')}</div>
+          <div class="reminder-card-time">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            <span>${timeStr}</span>
+          </div>
+          <div class="reminder-card-footer">
+            Tạo bởi ${escapeHTML(ed.creatorName || msg.senderName || 'Bạn')}
+          </div>
+        </div>
+      `;
+    } else if (!msg.recalled && msg.messageType === 'contact_card' && msg.extraData) {
+      const cd = msg.extraData;
+      richContentHtml = `
+        <div class="contact-card-bubble">
+          <div class="contact-card-top">
+            <img src="${cd.avatar}" alt="${escapeHTML(cd.name)}" class="contact-card-avatar">
+            <div class="contact-card-info">
+              <span class="contact-card-name">${escapeHTML(cd.name)}</span>
+              <span class="contact-card-phone">${escapeHTML(cd.phone || '')}</span>
+              <span class="contact-card-tag">${escapeHTML(cd.tag || '')}</span>
+            </div>
+          </div>
+          <button class="contact-card-btn" data-contact-id="${cd.id}">Nhắn tin</button>
         </div>
       `;
     }
@@ -1956,12 +2820,13 @@
     }
 
     row.innerHTML = `
-      ${!isOutgoing ? `<img src="${msg.senderAvatar}" alt="${msg.senderName}" class="msg-avatar" title="${msg.senderName}">` : ''}
+      ${!isOutgoing ? `<img src="${msg.senderAvatar}" alt="${escapeHTML(msg.senderName)}" class="msg-avatar" title="${escapeHTML(msg.senderName)}">` : ''}
       <div class="message-content-wrapper">
-        ${!isOutgoing && msg.isGroup ? `<span class="sender-label">${escapeHTML(msg.senderName)}</span>` : ''}
+        ${!isOutgoing && msg.isGroup ? `<span class="sender-label">${escapeHTML(getDisplayName(msg.senderId, msg.senderName))}</span>` : ''}
         <div class="message-bubble ${msg.recalled ? 'recalled' : ''}">
           ${replyHtml}
-          ${msg.recalled ? '<i>Tin nhắn đã được thu hồi</i>' : (msg.text ? linkify(escapeHTML(msg.text)) : '')}
+          ${richContentHtml}
+          ${msg.recalled ? '<i>Tin nhắn đã được thu hồi</i>' : (!richContentHtml && msg.text ? linkify(escapeHTML(msg.text)) : '')}
           ${mediaHtml}
         </div>
         <div class="message-meta">
@@ -1977,6 +2842,29 @@
         ` : ''}
       </div>
     `;
+
+    // Contact card click handler
+    const contactBtn = row.querySelector('.contact-card-btn');
+    if (contactBtn) {
+      contactBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const contactId = contactBtn.dataset.contactId;
+        const targetUser = allUsers.find(u => u.id === contactId);
+        if (targetUser) {
+          selectTarget({
+            id: targetUser.id,
+            name: getDisplayName(targetUser.id, targetUser.name),
+            rawName: targetUser.name,
+            avatar: targetUser.avatar,
+            phone: targetUser.phone,
+            tag: targetUser.tag,
+            isGroup: false,
+            status: targetUser.status === 'online' ? 'Đang hoạt động' : 'Ngoại tuyến',
+            bio: targetUser.bio
+          });
+        }
+      });
+    }
 
     const imgEl = row.querySelector('.message-image');
     if (imgEl) {

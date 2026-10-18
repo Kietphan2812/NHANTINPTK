@@ -52,10 +52,17 @@ app.use(express.static(path.join(__dirname, 'public')));
 function safeUser(u, isOnline = false) {
   if (!u) return null;
   const { password, ...rest } = u;
+  let settings = {};
+  try {
+    settings = typeof u.settings === 'string' ? JSON.parse(u.settings || '{}') : (u.settings || {});
+  } catch (e) {
+    settings = {};
+  }
   return {
     ...rest,
     status: isOnline ? 'online' : (u.status || 'offline'),
     friends: Array.isArray(u.friends) ? u.friends : (typeof u.friends === 'string' ? JSON.parse(u.friends || '[]') : []),
+    settings: settings,
     friendRequestsReceived: [],
     friendRequestsSent: []
   };
@@ -109,9 +116,16 @@ try {
       reactions TEXT DEFAULT '{}',
       is_pinned INTEGER DEFAULT 0,
       recalled INTEGER DEFAULT 0,
-      timestamp INTEGER NOT NULL
+      timestamp INTEGER NOT NULL,
+      message_type TEXT DEFAULT 'normal',
+      extra_data TEXT DEFAULT '{}'
     );
   `);
+
+  // Try altering existing tables for backwards compatibility
+  try { sqliteDb.exec(`ALTER TABLE users ADD COLUMN settings TEXT DEFAULT '{}';`); } catch (e) {}
+  try { sqliteDb.exec(`ALTER TABLE messages ADD COLUMN message_type TEXT DEFAULT 'normal';`); } catch (e) {}
+  try { sqliteDb.exec(`ALTER TABLE messages ADD COLUMN extra_data TEXT DEFAULT '{}';`); } catch (e) {}
 
   // Remove any fake accounts if present in SQL
   sqliteDb.exec(`DELETE FROM users WHERE id IN ('user_quan', 'user_linh', 'user_tuan', 'user_ngoc')`);
@@ -262,15 +276,29 @@ function dbDeleteRoom(roomId) {
 
 function dbInsertMessage(msg) {
   if (sqliteDb) {
-    sqliteDb.prepare(`
-      INSERT INTO messages (id, sender_id, sender_name, sender_avatar, target_id, is_group, text, image_url, file_url, file_name, reply_to, reactions, is_pinned, recalled, timestamp)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      msg.id, msg.senderId, msg.senderName, msg.senderAvatar, msg.targetId,
-      msg.isGroup ? 1 : 0, msg.text || '', msg.imageUrl, msg.fileUrl, msg.fileName,
-      msg.replyTo ? JSON.stringify(msg.replyTo) : null,
-      JSON.stringify(msg.reactions || {}), msg.isPinned ? 1 : 0, msg.recalled ? 1 : 0, msg.timestamp
-    );
+    try {
+      sqliteDb.prepare(`
+        INSERT INTO messages (id, sender_id, sender_name, sender_avatar, target_id, is_group, text, image_url, file_url, file_name, reply_to, reactions, is_pinned, recalled, timestamp, message_type, extra_data)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        msg.id, msg.senderId, msg.senderName, msg.senderAvatar, msg.targetId,
+        msg.isGroup ? 1 : 0, msg.text || '', msg.imageUrl, msg.fileUrl, msg.fileName,
+        msg.replyTo ? JSON.stringify(msg.replyTo) : null,
+        JSON.stringify(msg.reactions || {}), msg.isPinned ? 1 : 0, msg.recalled ? 1 : 0, msg.timestamp,
+        msg.messageType || 'normal',
+        msg.extraData ? (typeof msg.extraData === 'string' ? msg.extraData : JSON.stringify(msg.extraData)) : '{}'
+      );
+    } catch (e) {
+      sqliteDb.prepare(`
+        INSERT INTO messages (id, sender_id, sender_name, sender_avatar, target_id, is_group, text, image_url, file_url, file_name, reply_to, reactions, is_pinned, recalled, timestamp)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        msg.id, msg.senderId, msg.senderName, msg.senderAvatar, msg.targetId,
+        msg.isGroup ? 1 : 0, msg.text || '', msg.imageUrl, msg.fileUrl, msg.fileName,
+        msg.replyTo ? JSON.stringify(msg.replyTo) : null,
+        JSON.stringify(msg.reactions || {}), msg.isPinned ? 1 : 0, msg.recalled ? 1 : 0, msg.timestamp
+      );
+    }
   }
   jsonDb.messages.push(msg);
   saveJSONDB(jsonDb);
@@ -281,6 +309,13 @@ function dbGetMessages(targetId, currentUserId, isGroup) {
     let rows = [];
     if (isGroup) {
       rows = sqliteDb.prepare('SELECT * FROM messages WHERE target_id = ? ORDER BY timestamp ASC').all(targetId);
+    } else if (currentUserId === targetId) {
+      // Cloud của tôi (Self-chat)
+      rows = sqliteDb.prepare(`
+        SELECT * FROM messages
+        WHERE is_group = 0 AND sender_id = ? AND target_id = ?
+        ORDER BY timestamp ASC
+      `).all(currentUserId, targetId);
     } else {
       rows = sqliteDb.prepare(`
         SELECT * FROM messages
@@ -302,6 +337,8 @@ function dbGetMessages(targetId, currentUserId, isGroup) {
       imageUrl: r.image_url,
       fileUrl: r.file_url,
       fileName: r.file_name,
+      messageType: r.message_type || 'normal',
+      extraData: r.extra_data ? (typeof r.extra_data === 'string' ? JSON.parse(r.extra_data || '{}') : r.extra_data) : {},
       replyTo: r.reply_to ? JSON.parse(r.reply_to) : null,
       reactions: JSON.parse(r.reactions || '{}'),
       isPinned: r.is_pinned === 1,
@@ -313,12 +350,47 @@ function dbGetMessages(targetId, currentUserId, isGroup) {
   if (isGroup) {
     return jsonDb.messages.filter(m => m.targetId === targetId);
   }
+  if (currentUserId === targetId) {
+    return jsonDb.messages.filter(m => !m.isGroup && m.senderId === currentUserId && m.targetId === currentUserId);
+  }
   return jsonDb.messages.filter(m =>
     !m.isGroup &&
     ((m.senderId === currentUserId && m.targetId === targetId) ||
      (m.senderId === targetId && m.targetId === currentUserId))
   );
 }
+
+function dbClearMessages(targetId, currentUserId, isGroup) {
+  if (sqliteDb) {
+    if (isGroup) {
+      sqliteDb.prepare('DELETE FROM messages WHERE target_id = ?').run(targetId);
+    } else if (currentUserId === targetId) {
+      sqliteDb.prepare('DELETE FROM messages WHERE is_group = 0 AND sender_id = ? AND target_id = ?').run(currentUserId, targetId);
+    } else {
+      sqliteDb.prepare(`
+        DELETE FROM messages
+        WHERE is_group = 0 AND (
+          (sender_id = ? AND target_id = ?) OR
+          (sender_id = ? AND target_id = ?)
+        )
+      `).run(currentUserId, targetId, targetId, currentUserId);
+    }
+  }
+  if (isGroup) {
+    jsonDb.messages = jsonDb.messages.filter(m => m.targetId !== targetId);
+  } else if (currentUserId === targetId) {
+    jsonDb.messages = jsonDb.messages.filter(m => !(m.senderId === currentUserId && m.targetId === currentUserId));
+  } else {
+    jsonDb.messages = jsonDb.messages.filter(m =>
+      !(
+        !m.isGroup &&
+        ((m.senderId === currentUserId && m.targetId === targetId) ||
+         (m.senderId === targetId && m.targetId === currentUserId))
+      )
+    );
+  }
+}
+
 
 // Track online sockets: userId -> Set of socket.ids
 const userSocketsMap = new Map();
@@ -723,6 +795,8 @@ io.on('connection', (socket) => {
   socket.on('message:send', (msgData) => {
     if (!currentUser) return;
 
+    const isSelfChat = !msgData.isGroup && msgData.targetId === currentUser.id;
+
     const newMessage = {
       id: `msg_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       senderId: currentUser.id,
@@ -734,6 +808,8 @@ io.on('connection', (socket) => {
       imageUrl: msgData.imageUrl || null,
       fileUrl: msgData.fileUrl || null,
       fileName: msgData.fileName || null,
+      messageType: msgData.messageType || 'normal',
+      extraData: msgData.extraData || {},
       replyTo: msgData.replyTo || null,
       timestamp: Date.now(),
       reactions: {},
@@ -745,9 +821,89 @@ io.on('connection', (socket) => {
 
     if (msgData.isGroup) {
       io.to(msgData.targetId).emit('message:new', newMessage);
+    } else if (isSelfChat) {
+      io.to(`user_${currentUser.id}`).emit('message:new', newMessage);
     } else {
       io.to(`user_${msgData.targetId}`).emit('message:new', newMessage);
       io.to(`user_${currentUser.id}`).emit('message:new', newMessage);
+    }
+  });
+
+  // Update User Settings (Pinned conversations, Muted chats, Aliases, Quick replies)
+  socket.on('user:update_settings', ({ settings }) => {
+    if (!currentUser || !settings) return;
+    const settingsStr = JSON.stringify(settings);
+    if (sqliteDb) {
+      sqliteDb.prepare('UPDATE users SET settings = ? WHERE id = ?').run(settingsStr, currentUser.id);
+    }
+    const u = jsonDb.users.find(x => x.id === currentUser.id);
+    if (u) u.settings = settings;
+    saveJSONDB(jsonDb);
+    currentUser.settings = settings;
+    socket.emit('user:settings_updated', { settings });
+  });
+
+  // Clear Chat History
+  socket.on('chat:clear_history', ({ targetId, isGroup }) => {
+    if (!currentUser || !targetId) return;
+    dbClearMessages(targetId, currentUser.id, isGroup);
+    if (isGroup) {
+      io.to(targetId).emit('chat:history_cleared', { targetId, isGroup });
+    } else if (targetId === currentUser.id) {
+      io.to(`user_${currentUser.id}`).emit('chat:history_cleared', { targetId, isGroup: false });
+    } else {
+      io.to(`user_${targetId}`).emit('chat:history_cleared', { targetId: currentUser.id, isGroup: false });
+      io.to(`user_${currentUser.id}`).emit('chat:history_cleared', { targetId, isGroup: false });
+    }
+  });
+
+  // Add Member to Group
+  socket.on('room:add_member', ({ roomId, memberIds }) => {
+    if (!currentUser || !roomId || !memberIds || memberIds.length === 0) return;
+    let room = dbGetAllRooms().find(r => r.id === roomId);
+    if (!room) return;
+    let updatedMembers = Array.from(new Set([...(room.members || []), ...memberIds]));
+    if (sqliteDb) {
+      sqliteDb.prepare('UPDATE rooms SET members = ? WHERE id = ?').run(JSON.stringify(updatedMembers), roomId);
+    }
+    const r = jsonDb.rooms.find(x => x.id === roomId);
+    if (r) r.members = updatedMembers;
+    saveJSONDB(jsonDb);
+    room.members = updatedMembers;
+
+    memberIds.forEach(memId => {
+      const memSockets = userSocketsMap.get(memId);
+      if (memSockets) {
+        memSockets.forEach(sId => {
+          const s = io.sockets.sockets.get(sId);
+          if (s) s.join(roomId);
+        });
+      }
+      io.to(`user_${memId}`).emit('room:created', { room });
+    });
+
+    io.to(roomId).emit('room:members_updated', { roomId, members: updatedMembers });
+  });
+
+  // Leave Group
+  socket.on('room:leave', ({ roomId }) => {
+    if (!currentUser || !roomId) return;
+    let room = dbGetAllRooms().find(r => r.id === roomId);
+    if (!room) return;
+    let updatedMembers = (room.members || []).filter(id => id !== currentUser.id);
+    if (updatedMembers.length === 0) {
+      dbDeleteRoom(roomId);
+      io.emit('room:deleted', { roomId });
+    } else {
+      if (sqliteDb) {
+        sqliteDb.prepare('UPDATE rooms SET members = ? WHERE id = ?').run(JSON.stringify(updatedMembers), roomId);
+      }
+      const r = jsonDb.rooms.find(x => x.id === roomId);
+      if (r) r.members = updatedMembers;
+      saveJSONDB(jsonDb);
+      socket.leave(roomId);
+      socket.emit('room:deleted', { roomId });
+      io.to(roomId).emit('room:members_updated', { roomId, members: updatedMembers });
     }
   });
 
