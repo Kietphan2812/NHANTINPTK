@@ -56,6 +56,12 @@
   const btnAudioCall = document.getElementById('btn-audio-call');
   const btnVideoCall = document.getElementById('btn-video-call');
   const btnToggleInfo = document.getElementById('btn-toggle-info');
+  if (chatTargetAvatar) {
+    chatTargetAvatar.onerror = function() {
+      this.onerror = null;
+      this.src = '/images/icon-192.png';
+    };
+  }
 
   // Pinned Message Banner
   const pinnedBanner = document.getElementById('pinned-banner');
@@ -2665,6 +2671,13 @@
       allRooms = data.rooms;
       renderSidebarContent();
       requestNotificationPermission();
+
+      // Automatically open Cloud cua toi on login if no chat is active
+      if (!currentTarget) {
+        if (typeof openCloudChat === 'function') {
+          openCloudChat();
+        }
+      }
     });
 
     socket.on('login:failed', (data) => {
