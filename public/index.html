@@ -1407,10 +1407,21 @@
           </div>
         </div>
 
-        <button id="btn-trigger-pwa-install" class="primary-btn w-100 pwa-install-btn">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          <span id="pwa-btn-text">Cài Đặt Ứng Dụng Ngay</span>
-        </button>
+        <div class="pwa-action-buttons" style="display: flex; flex-direction: column; gap: 10px;">
+          <button id="btn-trigger-pwa-install" class="primary-btn w-100 pwa-install-btn">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span id="pwa-btn-text">Cài Đặt App Trực Tiếp (1 Chạm)</span>
+          </button>
+
+          <a id="btn-download-desktop-app" href="/api/download/desktop-app" download="ZaloChat-Setup.bat" class="pwa-download-bat-btn" style="text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 0; border-radius: 24px; background: #f0f7ff; color: #0068ff; border: 1.5px solid #0068ff; font-weight: 700; font-size: 0.92rem; transition: all 0.2s ease;">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            <span>Tải Trình Cài Icon Desktop PC (Windows)</span>
+          </a>
+        </div>
+
+        <div class="pwa-desktop-guide" id="pwa-desktop-guide" style="margin-top: 14px; font-size: 0.83rem; color: var(--text-muted); text-align: left; background: var(--bg-tertiary); padding: 10px 14px; border-radius: 8px; line-height: 1.5;">
+          <p>💡 <strong>Cài nhanh trên Trình duyệt Máy tính:</strong> Trên Chrome, Cốc Cốc hoặc Edge, bạn hãy nhìn lên góc phải của thanh địa chỉ URL và nhấn vào biểu tượng <strong>Cài đặt (⊕)</strong> để cài app trong 1 giây!</p>
+        </div>
 
         <div class="pwa-ios-instructions" id="pwa-ios-guide" style="display: none;">
           <p><strong>Hướng dẫn cho iPhone / iPad (Safari):</strong></p>

@@ -538,7 +538,14 @@
         console.error('Install prompt error:', err);
       }
     } else {
-      alert('Để cài đặt ZaloChat:\n• Trên Chrome/Edge Máy tính: Nhấn vào biểu tượng Cài đặt (⊕) ở góc phải thanh địa chỉ duyệt web.\n• Trên Android Chrome: Nhấn vào menu 3 chấm (⋮) -> Chọn "Cài đặt ứng dụng" hoặc "Thêm vào màn hình chính".');
+      // Download desktop setup batch script for Windows PC
+      showToast('Đang tải file cài đặt ZaloChat cho Desktop máy tính...');
+      const downloadLink = document.createElement('a');
+      downloadLink.href = '/api/download/desktop-app';
+      downloadLink.download = 'ZaloChat-Setup.bat';
+      document.body.appendChild(downloadLink);
+      downloadLink.click();
+      document.body.removeChild(downloadLink);
       closePwaInstallModal();
     }
   }
@@ -1435,12 +1442,47 @@
             if (data.url) {
               const profileModalAvatar = document.getElementById('profile-modal-avatar');
               if (profileModalAvatar) profileModalAvatar.src = data.url;
-              showToast('Ảnh đại diện đã sẵn sàng!');
+              if (myAvatar) myAvatar.src = data.url;
+
+              if (currentUser) {
+                currentUser.avatar = data.url;
+                localStorage.setItem('zalochat_user', JSON.stringify(currentUser));
+
+                // Auto persist to database immediately
+                fetch('/api/users/profile', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    id: currentUser.id,
+                    name: currentUser.name,
+                    gender: currentUser.gender,
+                    dob: currentUser.dob,
+                    phone: currentUser.phone,
+                    bio: currentUser.bio,
+                    avatar: data.url,
+                    cover: currentUser.cover
+                  })
+                }).then(r => r.json()).then(res => {
+                  if (res.success && res.user) {
+                    currentUser = res.user;
+                    localStorage.setItem('zalochat_user', JSON.stringify(currentUser));
+                    renderSidebarContent();
+                  }
+                }).catch(e => console.error('Auto save avatar error:', e));
+              }
+
+              showToast('Ảnh đại diện đã được lưu thành công!');
             }
           } catch (err) {
             console.error('Avatar upload error:', err);
           }
         }
+      });
+    }
+
+    if (btnChangeAvatar && profileAvatarFileInput) {
+      btnChangeAvatar.addEventListener('click', () => {
+        profileAvatarFileInput.click();
       });
     }
 
@@ -1469,7 +1511,34 @@
             if (data.url) {
               const coverEl = document.getElementById('profile-cover-img');
               if (coverEl) coverEl.src = data.url;
-              showToast('Ảnh bìa đã sẵn sàng!');
+
+              if (currentUser) {
+                currentUser.cover = data.url;
+                localStorage.setItem('zalochat_user', JSON.stringify(currentUser));
+
+                // Auto persist cover to database immediately
+                fetch('/api/users/profile', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    id: currentUser.id,
+                    name: currentUser.name,
+                    gender: currentUser.gender,
+                    dob: currentUser.dob,
+                    phone: currentUser.phone,
+                    bio: currentUser.bio,
+                    avatar: currentUser.avatar,
+                    cover: data.url
+                  })
+                }).then(r => r.json()).then(res => {
+                  if (res.success && res.user) {
+                    currentUser = res.user;
+                    localStorage.setItem('zalochat_user', JSON.stringify(currentUser));
+                  }
+                }).catch(e => console.error('Auto save cover error:', e));
+              }
+
+              showToast('Ảnh bìa đã được lưu thành công!');
             }
           } catch (err) {
             console.error('Cover upload error:', err);

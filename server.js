@@ -178,22 +178,55 @@ function saveJSONDB(data) {
 }
 let jsonDb = loadJSONDB();
 
-// Sync JSON users into SQL if SQL is fresh
-if (sqliteDb && jsonDb.users && jsonDb.users.length > 0) {
-  jsonDb.users.forEach(u => {
-    try {
-      const existing = sqliteDb.prepare('SELECT id FROM users WHERE id = ?').get(u.id);
-      if (!existing && u.phone && u.username) {
-        sqliteDb.prepare(`
-          INSERT OR REPLACE INTO users (id, name, tag, username, phone, password, avatar, bio, friends, status, last_seen)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(
-          u.id, u.name, u.tag || `@${u.username}`, u.username, u.phone, u.password || '123',
-          u.avatar || '', u.bio || '', JSON.stringify(u.friends || []), 'offline', u.lastSeen || new Date().toISOString()
-        );
+// Bidirectional sync between SQLite and JSON DB on startup
+if (sqliteDb) {
+  // 1. Sync any users in JSON into SQLite
+  if (jsonDb.users && jsonDb.users.length > 0) {
+    jsonDb.users.forEach(u => {
+      try {
+        const existing = sqliteDb.prepare('SELECT id FROM users WHERE id = ?').get(u.id);
+        if (!existing && u.phone && u.username) {
+          sqliteDb.prepare(`
+            INSERT OR REPLACE INTO users (id, name, tag, username, phone, password, avatar, bio, friends, status, last_seen, gender, dob, cover, settings)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `).run(
+            u.id, u.name, u.tag || `@${u.username}`, u.username, u.phone, u.password || '123',
+            u.avatar || '', u.bio || '', JSON.stringify(u.friends || []), 'offline', u.lastSeen || new Date().toISOString(),
+            u.gender || 'Nam', u.dob || '28 tháng 12, 2004', u.cover || '', JSON.stringify(u.settings || {})
+          );
+        } else if (existing) {
+          // Keep profile updated with latest data
+          sqliteDb.prepare(`
+            UPDATE users SET 
+              name = COALESCE(?, name),
+              avatar = COALESCE(?, avatar),
+              bio = COALESCE(?, bio),
+              gender = COALESCE(?, gender),
+              dob = COALESCE(?, dob),
+              cover = COALESCE(?, cover)
+            WHERE id = ?
+          `).run(u.name || null, u.avatar || null, u.bio || null, u.gender || null, u.dob || null, u.cover || null, u.id);
+        }
+      } catch (e) {
+        console.warn('Sync user to SQLite error:', e.message);
       }
-    } catch (e) {}
-  });
+    });
+  }
+
+  // 2. Sync all users in SQLite back into JSON DB
+  try {
+    const allSqlUsers = sqliteDb.prepare('SELECT * FROM users').all();
+    if (allSqlUsers.length > 0) {
+      jsonDb.users = allSqlUsers.map(r => ({
+        ...r,
+        friends: JSON.parse(r.friends || '[]'),
+        settings: JSON.parse(r.settings || '{}')
+      }));
+      saveJSONDB(jsonDb);
+    }
+  } catch (e) {
+    console.warn('Sync SQLite to JSON error:', e.message);
+  }
 }
 
 // Unified Database Helpers
@@ -314,15 +347,20 @@ function dbFindUserById(id) {
 
 function dbInsertUser(user) {
   if (sqliteDb) {
-    sqliteDb.prepare(`
-      INSERT INTO users (id, name, tag, username, phone, password, avatar, bio, friends, status, last_seen)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      user.id, user.name, user.tag, user.username, user.phone, user.password,
-      user.avatar, user.bio, JSON.stringify(user.friends || []), 'offline', user.lastSeen
-    );
+    try {
+      sqliteDb.prepare(`
+        INSERT OR REPLACE INTO users (id, name, tag, username, phone, password, avatar, bio, friends, status, last_seen, gender, dob, cover, settings)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        user.id, user.name, user.tag || `@${user.username}`, user.username, user.phone, user.password || '123',
+        user.avatar || '', user.bio || '', JSON.stringify(user.friends || []), 'offline', user.lastSeen || new Date().toISOString(),
+        user.gender || 'Nam', user.dob || '28 tháng 12, 2004', user.cover || '', JSON.stringify(user.settings || {})
+      );
+    } catch (e) {
+      console.error('dbInsertUser SQLite error:', e.message);
+    }
   }
-  jsonDb.users = jsonDb.users.filter(u => u.id !== user.id);
+  jsonDb.users = (jsonDb.users || []).filter(u => u.id !== user.id);
   jsonDb.users.push(user);
   saveJSONDB(jsonDb);
 }
@@ -609,6 +647,57 @@ app.get('/api/bootstrap', (req, res) => {
   res.json({ users, rooms });
 });
 
+// Download Desktop App Shortcut Setup for Windows PC
+app.get('/api/download/desktop-app', (req, res) => {
+  const hostUrl = `${req.protocol}://${req.get('host')}`;
+  const batScript = `@echo off
+title Cai dat ZaloChat Desktop
+chcp 65001 >nul
+echo ======================================================
+echo    DANG CAI DAT UNG DUNG ZALOCHAT LEN MAY TINH...
+echo ======================================================
+
+set SCRIPT="%TEMP%\\zalochat-install-%RANDOM%.vbs"
+set SHORTCUT="%USERPROFILE%\\Desktop\\ZaloChat.lnk"
+set APPURL=${hostUrl}
+
+:: Tim trinh duyet Chrome hoac Edge tren may
+set BROWSER=
+if exist "%ProgramFiles%\\Google\\Chrome\\Application\\chrome.exe" set BROWSER="%ProgramFiles%\\Google\\Chrome\\Application\\chrome.exe"
+if exist "%ProgramFiles(x86)%\\Google\\Chrome\\Application\\chrome.exe" set BROWSER="%ProgramFiles(x86)%\\Google\\Chrome\\Application\\chrome.exe"
+if exist "%LOCALAPPDATA%\\Google\\Chrome\\Application\\chrome.exe" set BROWSER="%LOCALAPPDATA%\\Google\\Chrome\\Application\\chrome.exe"
+if "%BROWSER%"=="" (
+    if exist "%ProgramFiles%\\Microsoft\\Edge\\Application\\msedge.exe" set BROWSER="%ProgramFiles%\\Microsoft\\Edge\\Application\\msedge.exe"
+    if exist "%ProgramFiles(x86)%\\Microsoft\\Edge\\Application\\msedge.exe" set BROWSER="%ProgramFiles(x86)%\\Microsoft\\Edge\\Application\\msedge.exe"
+)
+
+echo Set oWS = WScript.CreateObject("WScript.Shell") > %SCRIPT%
+echo sLinkFile = %SHORTCUT% >> %SCRIPT%
+echo Set oLink = oWS.CreateShortcut(sLinkFile) >> %SCRIPT%
+if not "%BROWSER%"=="" (
+    echo oLink.TargetPath = %BROWSER% >> %SCRIPT%
+    echo oLink.Arguments = "--app=" ^& "%APPURL%" >> %SCRIPT%
+) else (
+    echo oLink.TargetPath = "%APPURL%" >> %SCRIPT%
+)
+echo oLink.Description = "ZaloChat - Nhan tin & Goi video" >> %SCRIPT%
+echo oLink.Save >> %SCRIPT%
+
+cscript /nologo %SCRIPT%
+del %SCRIPT%
+
+echo.
+echo [THANH CONG] Da tao bieu tuong ZaloChat tren man hinh Desktop!
+echo Gio ban co the mo ZaloChat truc tiep tu Desktop nhu mot ung dung may tinh!
+echo.
+timeout /t 5
+`;
+
+  res.setHeader('Content-Type', 'application/bat');
+  res.setHeader('Content-Disposition', 'attachment; filename="ZaloChat-Setup.bat"');
+  res.send(batScript);
+});
+
 // Authentication: Register into SQLite Database
 app.post('/api/auth/register', (req, res) => {
   const { name, phone, username, password, avatar, bio } = req.body;
@@ -773,20 +862,26 @@ app.post('/api/users/profile', async (req, res) => {
   const newPhone = phone ? phone.trim() : user.phone;
 
   if (sqliteDb) {
-    sqliteDb.prepare('UPDATE users SET name = ?, bio = ?, avatar = ?, gender = ?, dob = ?, cover = ?, phone = ? WHERE id = ?')
-      .run(newName, newBio, newAvatar, newGender, newDob, newCover, newPhone, id);
+    try {
+      sqliteDb.prepare('UPDATE users SET name = ?, bio = ?, avatar = ?, gender = ?, dob = ?, cover = ?, phone = ? WHERE id = ?')
+        .run(newName, newBio, newAvatar, newGender, newDob, newCover, newPhone, id);
+    } catch (e) {
+      console.error('Update user profile SQLite error:', e.message);
+    }
   }
-  const u = jsonDb.users.find(x => x.id === id);
-  if (u) {
-    u.name = newName;
-    u.bio = newBio;
-    u.avatar = newAvatar;
-    u.gender = newGender;
-    u.dob = newDob;
-    u.cover = newCover;
-    u.phone = newPhone;
-    saveJSONDB(jsonDb);
+  let u = jsonDb.users.find(x => x.id === id);
+  if (!u) {
+    u = { ...user };
+    jsonDb.users.push(u);
   }
+  u.name = newName;
+  u.bio = newBio;
+  u.avatar = newAvatar;
+  u.gender = newGender;
+  u.dob = newDob;
+  u.cover = newCover;
+  u.phone = newPhone;
+  saveJSONDB(jsonDb);
 
   const updatedUser = dbFindUserById(id);
   io.emit('users:list_updated', dbGetAllUsers().map(x => safeUser(x, isUserOnline(x.id))));
