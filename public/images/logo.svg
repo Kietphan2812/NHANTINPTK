@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bubbleBlue" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2575fc"/>
+      <stop offset="100%" stop-color="#1865f2"/>
+    </linearGradient>
+  </defs>
+  <!-- Circular speech bubble with tail at bottom-left -->
+  <path d="M 256 36 C 138.9 36 44 130.9 44 248 C 44 311.6 72.1 368.6 116.4 407.2 C 111.7 440.5 95.8 468.2 73.6 488.4 C 69.8 491.9 72.4 498.2 77.5 498 C 142.4 495.2 196.8 463.3 221.7 447.8 C 232.8 450.4 244.2 452 256 452 C 373.1 452 468 357.1 468 248 C 468 130.9 373.1 36 256 36 Z" fill="url(#bubbleBlue)"/>
+  <!-- Crisp Center Lightning Bolt -->
+  <path d="M 276 112 L 186 268 L 254 268 L 222 400 L 326 236 L 254 236 Z" fill="#ffffff"/>
+</svg>

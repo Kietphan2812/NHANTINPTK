@@ -209,6 +209,16 @@
   const btnAnswerCall = document.getElementById('btn-answer-call');
   const btnRejectCall = document.getElementById('btn-reject-call');
 
+  // PWA & Unread Badge Elements
+  const pwaInstallModal = document.getElementById('pwa-install-modal');
+  const btnClosePwaModal = document.getElementById('btn-close-pwa-modal');
+  const btnTriggerPwaInstall = document.getElementById('btn-trigger-pwa-install');
+  const pwaIosGuide = document.getElementById('pwa-ios-guide');
+  const btnRailInstallApp = document.getElementById('btn-rail-install-app');
+  const btnMobileInstallApp = document.getElementById('btn-mobile-install-app');
+  const railUnreadTotal = document.getElementById('rail-unread-total');
+  const mobileUnreadTotal = document.getElementById('mobile-unread-total');
+
   // Application State
   let socket = null;
   let currentUser = null;
@@ -226,6 +236,7 @@
   let isTyping = false;
   let currentSidebarTab = 'messages'; // 'messages' | 'friends'
   let isSoundEnabled = localStorage.getItem('zalochat_sound') !== 'false';
+  let deferredInstallPrompt = null;
 
   // Voice Recording State (Zalo / Messenger Style)
   let voiceMediaRecorder = null;
@@ -288,7 +299,7 @@
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   }
 
-  const CLOUD_AVATAR = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><linearGradient id="cg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%230068ff"/><stop offset="100%" stop-color="%2300a8ff"/></linearGradient></defs><circle cx="50" cy="50" r="50" fill="url(%23cg)"/><path d="M68 53h-2.5A16 16 0 1 0 34 68h34a10 10 0 0 0 0-15z" fill="white"/></svg>';
+  const CLOUD_AVATAR = '/images/cloud.svg';
 
   function getUserSettings() {
     if (!currentUser) return { pinnedConversations: [], mutedConversations: [], aliases: {}, quickReplies: [] };
@@ -351,6 +362,185 @@
       osc1.stop(now + 0.6);
       osc2.stop(now + 0.6);
     } catch (e) {}
+  }
+
+  function updateGlobalUnreadBadges() {
+    let totalUnread = 0;
+    if (unreadCounts && typeof unreadCounts === 'object') {
+      Object.keys(unreadCounts).forEach(id => {
+        totalUnread += (unreadCounts[id] || 0);
+      });
+    }
+
+    // 1. Update Title Bar for PC & Mobile browser
+    const baseTitle = 'ZaloChat - Nhắn tin, Gọi video';
+    document.title = totalUnread > 0 ? `(${totalUnread}) ${baseTitle}` : baseTitle;
+
+    // 2. Update Left Rail Badge (PC View)
+    if (railUnreadTotal) {
+      if (totalUnread > 0) {
+        railUnreadTotal.textContent = totalUnread > 99 ? '99+' : totalUnread;
+        railUnreadTotal.style.display = 'inline-block';
+      } else {
+        railUnreadTotal.style.display = 'none';
+      }
+    }
+
+    // 3. Update Mobile Bottom Nav Badge (Mobile View)
+    if (mobileUnreadTotal) {
+      if (totalUnread > 0) {
+        mobileUnreadTotal.textContent = totalUnread > 99 ? '99+' : totalUnread;
+        mobileUnreadTotal.style.display = 'inline-block';
+      } else {
+        mobileUnreadTotal.style.display = 'none';
+      }
+    }
+
+    // 4. Native App Badge (PC Taskbar / Mobile Homescreen Icon)
+    if ('setAppBadge' in navigator) {
+      if (totalUnread > 0) {
+        navigator.setAppBadge(totalUnread).catch(() => {});
+      } else {
+        navigator.clearAppBadge().catch(() => {});
+      }
+    }
+  }
+
+  function requestNotificationPermission() {
+    if ('Notification' in window && Notification.permission === 'default') {
+      try {
+        Notification.requestPermission().then(perm => {
+          if (perm === 'granted') {
+            console.log('ZaloChat notifications enabled');
+          }
+        }).catch(() => {});
+      } catch (e) {}
+    }
+  }
+
+  function showDesktopNotification(msg) {
+    if (!('Notification' in window)) return;
+    if (Notification.permission !== 'granted') return;
+    if (!currentUser || msg.senderId === currentUser.id) return;
+
+    const partnerId = msg.isGroup ? msg.targetId : msg.senderId;
+    const settings = getUserSettings();
+    if (Array.isArray(settings.mutedConversations) && settings.mutedConversations.includes(partnerId)) {
+      return;
+    }
+
+    let senderName = msg.senderName || 'Người dùng';
+    let title = senderName;
+    if (msg.isGroup) {
+      const room = allRooms.find(r => r.id === msg.targetId);
+      const roomTitle = room ? room.name : 'Nhóm chat';
+      title = `${senderName} (${roomTitle})`;
+    }
+
+    let body = msg.text || '';
+    if (!body) {
+      if (msg.imageUrl) body = '📷 [Hình ảnh] Đã gửi một hình ảnh';
+      else if (msg.audioUrl) body = '🎤 [Ghi âm] Đã gửi một tin nhắn thoại';
+      else if (msg.attachment) body = `📎 [Tập tin] ${msg.attachment.name || 'Tập tin đính kèm'}`;
+      else body = '💬 Đã gửi cho bạn một tin nhắn mới';
+    }
+
+    try {
+      const notif = new Notification(title, {
+        body: body,
+        icon: '/images/logo.png',
+        badge: '/images/logo.png',
+        tag: 'zalochat-' + partnerId,
+        renotify: true
+      });
+
+      notif.onclick = () => {
+        window.focus();
+        if (msg.isGroup) {
+          const room = allRooms.find(r => r.id === msg.targetId);
+          if (room) {
+            selectTarget({
+              id: room.id,
+              name: room.name,
+              rawName: room.name,
+              avatar: room.avatar || '/images/default-group.png',
+              isGroup: true,
+              isCloud: false,
+              creatorId: room.creatorId,
+              status: 'Nhóm trò chuyện'
+            });
+          }
+        } else {
+          const sender = allUsers.find(u => u.id === msg.senderId);
+          if (sender) {
+            selectTarget({
+              id: sender.id,
+              name: sender.name,
+              rawName: sender.name,
+              avatar: sender.avatar || '/images/default-avatar.png',
+              phone: sender.phone,
+              isGroup: false,
+              isCloud: false,
+              status: 'Đang hoạt động'
+            });
+          }
+        }
+        notif.close();
+      };
+    } catch (e) {
+      console.warn('System notification error:', e);
+    }
+  }
+
+  function isIosDevice() {
+    return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  }
+
+  function isAppInstalled() {
+    return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+  }
+
+  function openPwaInstallModal() {
+    requestNotificationPermission();
+    if (!pwaInstallModal) return;
+
+    if (isAppInstalled()) {
+      showToast('ZaloChat đã được cài đặt trên thiết bị của bạn!');
+      return;
+    }
+
+    if (isIosDevice()) {
+      if (pwaIosGuide) pwaIosGuide.style.display = 'block';
+      if (btnTriggerPwaInstall) btnTriggerPwaInstall.style.display = 'none';
+    } else {
+      if (pwaIosGuide) pwaIosGuide.style.display = 'none';
+      if (btnTriggerPwaInstall) btnTriggerPwaInstall.style.display = 'inline-flex';
+    }
+
+    pwaInstallModal.style.display = 'flex';
+  }
+
+  function closePwaInstallModal() {
+    if (pwaInstallModal) pwaInstallModal.style.display = 'none';
+  }
+
+  async function triggerPwaInstall() {
+    if (deferredInstallPrompt) {
+      try {
+        deferredInstallPrompt.prompt();
+        const choiceResult = await deferredInstallPrompt.userChoice;
+        if (choiceResult && choiceResult.outcome === 'accepted') {
+          showToast('Đang cài đặt ứng dụng ZaloChat...');
+        }
+        deferredInstallPrompt = null;
+        closePwaInstallModal();
+      } catch (err) {
+        console.error('Install prompt error:', err);
+      }
+    } else {
+      alert('Để cài đặt ZaloChat:\n• Trên Chrome/Edge Máy tính: Nhấn vào biểu tượng Cài đặt (⊕) ở góc phải thanh địa chỉ duyệt web.\n• Trên Android Chrome: Nhấn vào menu 3 chấm (⋮) -> Chọn "Cài đặt ứng dụng" hoặc "Thêm vào màn hình chính".');
+      closePwaInstallModal();
+    }
   }
 
   function playRingTone() {
@@ -933,6 +1123,25 @@
     // Rail Feature Shortcuts (Cloud của tôi, Settings, Todo, etc.)
     if (btnZcloud) {
       btnZcloud.addEventListener('click', openCloudChat);
+    }
+
+    // PWA Install Triggers (Desktop & Mobile)
+    if (btnRailInstallApp) {
+      btnRailInstallApp.addEventListener('click', openPwaInstallModal);
+    }
+    if (btnMobileInstallApp) {
+      btnMobileInstallApp.addEventListener('click', openPwaInstallModal);
+    }
+    if (btnClosePwaModal) {
+      btnClosePwaModal.addEventListener('click', closePwaInstallModal);
+    }
+    if (pwaInstallModal) {
+      pwaInstallModal.addEventListener('click', (e) => {
+        if (e.target === pwaInstallModal) closePwaInstallModal();
+      });
+    }
+    if (btnTriggerPwaInstall) {
+      btnTriggerPwaInstall.addEventListener('click', triggerPwaInstall);
     }
     const btnRailSettings = document.getElementById('btn-rail-settings');
     if (btnRailSettings) {
@@ -2377,6 +2586,7 @@
       allUsers = data.users;
       allRooms = data.rooms;
       renderSidebarContent();
+      requestNotificationPermission();
     });
 
     socket.on('login:failed', (data) => {
@@ -2592,6 +2802,7 @@
 
       if (msg.senderId !== currentUser.id) {
         playNotificationDing(partnerId);
+        showDesktopNotification(msg);
       }
 
       renderSidebarContent();
@@ -3422,6 +3633,8 @@
         );
       });
     }
+
+    updateGlobalUnreadBadges();
   }
 
   function renderConversationItem(id, name, avatar, isGroup, subtext, statusText, isOnline = false, phone = null, unread = 0, isPinned = false, isMuted = false, isCloud = false, itemData = {}) {
@@ -4080,6 +4293,30 @@
       messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }, 50);
   }
+
+  // Service Worker Registration for PWA & Offline
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js').then((reg) => {
+        console.log('ZaloChat SW registered:', reg.scope);
+      }).catch((err) => {
+        console.warn('ZaloChat SW registration failed:', err);
+      });
+    });
+  }
+
+  // PWA Install Event Handler
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredInstallPrompt = e;
+    console.log('PWA beforeinstallprompt event captured');
+  });
+
+  window.addEventListener('appinstalled', () => {
+    deferredInstallPrompt = null;
+    showToast('🎉 ZaloChat đã được cài đặt vào thiết bị thành công!');
+    closePwaInstallModal();
+  });
 
   window.addEventListener('DOMContentLoaded', initApp);
 })();

@@ -4110,6 +4110,210 @@ body {
   opacity: 1;
 }
 
+/* ===================================================================
+   LOGO, PWA INSTALLATION, UNREAD BADGES & MOBILE ENHANCEMENTS
+   =================================================================== */
+.window-title-logo {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  margin-right: 6px;
+  border-radius: 4px;
+}
+
+.rail-unread-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: #ef4444;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  min-width: 18px;
+  height: 18px;
+  line-height: 18px;
+  border-radius: 9px;
+  padding: 0 4px;
+  text-align: center;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.25);
+  animation: popIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: none;
+}
+
+.rail-btn-install {
+  background: rgba(255, 255, 255, 0.16) !important;
+  color: #ffffff !important;
+  border-radius: 10px !important;
+  transition: all 0.2s ease;
+}
+.rail-btn-install:hover {
+  background: rgba(255, 255, 255, 0.28) !important;
+  transform: translateY(-1px);
+}
+
+.mobile-nav-icon-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.mobile-unread-badge {
+  position: absolute;
+  top: -4px;
+  right: -8px;
+  background: #ef4444;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  min-width: 16px;
+  height: 16px;
+  line-height: 16px;
+  border-radius: 8px;
+  padding: 0 3px;
+  text-align: center;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+}
+
+/* PWA App Install Modal */
+.pwa-install-card {
+  max-width: 440px !important;
+  text-align: center;
+  padding: 24px !important;
+  border-radius: 16px !important;
+  background: var(--bg-main) !important;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3) !important;
+}
+.pwa-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.pwa-card-header h3 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin: 0;
+  color: var(--text-main);
+}
+.pwa-logo-wrapper {
+  margin: 8px auto 16px;
+  width: 88px;
+  height: 88px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 22px;
+  background: linear-gradient(135deg, #e0f2fe 0%, #dbeafe 100%);
+  box-shadow: 0 8px 24px rgba(0, 104, 255, 0.22);
+}
+.pwa-app-logo {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+}
+.pwa-card-body h4 {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--text-main);
+  margin-bottom: 8px;
+}
+.pwa-desc {
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin-bottom: 18px;
+}
+.pwa-features-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: left;
+  background: var(--bg-tertiary);
+  padding: 14px;
+  border-radius: 10px;
+  margin-bottom: 20px;
+}
+.pwa-feature-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.85rem;
+  color: var(--text-main);
+  font-weight: 500;
+}
+.pwa-feat-icon {
+  font-size: 1.15rem;
+  flex-shrink: 0;
+}
+.pwa-install-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  padding: 13px 0;
+  border-radius: 24px;
+  background: #0068ff;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.pwa-install-btn:hover {
+  background: #005ae0;
+  transform: translateY(-1px);
+}
+.pwa-ios-instructions {
+  margin-top: 16px;
+  text-align: left;
+  background: #f8fafc;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 0.82rem;
+  color: var(--text-main);
+}
+[data-theme="dark"] .pwa-ios-instructions {
+  background: #111827;
+  border-color: #374151;
+}
+.pwa-ios-instructions ol {
+  padding-left: 20px;
+  margin-top: 6px;
+  line-height: 1.5;
+}
+
+/* Mobile Polish */
+@media (max-width: 768px) {
+  .zalo-window-header {
+    display: none; /* Hide PC desktop title bar on mobile screens */
+  }
+  .app-layout {
+    height: 100vh;
+    height: 100dvh;
+  }
+  .chat-header {
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+  }
+  .chat-main {
+    height: 100%;
+  }
+  .messages-container {
+    padding-bottom: 8px;
+  }
+  .chat-input-wrapper {
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border-color);
+  }
+  .mobile-bottom-nav {
+    height: 56px;
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border-color);
+  }
+}
+
 
 
 
