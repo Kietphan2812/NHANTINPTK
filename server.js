@@ -66,8 +66,8 @@ function safeUser(u, isOnline = false) {
     status: isOnline ? 'online' : (u.status || 'offline'),
     friends: Array.isArray(u.friends) ? u.friends : (typeof u.friends === 'string' ? JSON.parse(u.friends || '[]') : []),
     settings: settings,
-    friendRequestsReceived: [],
-    friendRequestsSent: []
+    friendRequestsReceived: typeof dbGetFriendRequestsForUser === 'function' ? dbGetFriendRequestsForUser(u.id) : [],
+    friendRequestsSent: typeof dbGetSentFriendRequestsForUser === 'function' ? dbGetSentFriendRequestsForUser(u.id) : []
   };
 }
 
@@ -122,6 +122,13 @@ try {
       timestamp INTEGER NOT NULL,
       message_type TEXT DEFAULT 'normal',
       extra_data TEXT DEFAULT '{}'
+    );
+
+    CREATE TABLE IF NOT EXISTS friend_requests (
+      id TEXT PRIMARY KEY,
+      sender_id TEXT NOT NULL,
+      receiver_id TEXT NOT NULL,
+      created_at INTEGER NOT NULL
     );
   `);
 
@@ -241,6 +248,67 @@ function dbUpdateUserFriends(userId, friendsArr) {
   const u = jsonDb.users.find(x => x.id === userId);
   if (u) u.friends = friendsArr;
   saveJSONDB(jsonDb);
+}
+
+function dbGetFriendRequestsForUser(userId) {
+  if (sqliteDb) {
+    try {
+      const rows = sqliteDb.prepare(`
+        SELECT fr.id, fr.sender_id, fr.receiver_id, fr.created_at,
+               u.name as sender_name, u.avatar as sender_avatar, u.phone as sender_phone, u.tag as sender_tag
+        FROM friend_requests fr
+        JOIN users u ON fr.sender_id = u.id
+        WHERE fr.receiver_id = ?
+        ORDER BY fr.created_at DESC
+      `).all(userId);
+      return rows;
+    } catch (e) {
+      return [];
+    }
+  }
+  return [];
+}
+
+function dbGetSentFriendRequestsForUser(userId) {
+  if (sqliteDb) {
+    try {
+      const rows = sqliteDb.prepare('SELECT receiver_id FROM friend_requests WHERE sender_id = ?').all(userId);
+      return rows.map(r => r.receiver_id);
+    } catch (e) {
+      return [];
+    }
+  }
+  return [];
+}
+
+function dbInsertFriendRequest(senderId, receiverId) {
+  if (sqliteDb) {
+    try {
+      const existing = sqliteDb.prepare('SELECT id FROM friend_requests WHERE sender_id = ? AND receiver_id = ?').get(senderId, receiverId);
+      if (!existing) {
+        const id = `freq_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+        sqliteDb.prepare('INSERT INTO friend_requests (id, sender_id, receiver_id, created_at) VALUES (?, ?, ?, ?)').run(
+          id, senderId, receiverId, Date.now()
+        );
+        return id;
+      }
+      return existing.id;
+    } catch (e) {
+      return null;
+    }
+  }
+  return null;
+}
+
+function dbDeleteFriendRequest(senderId, receiverId) {
+  if (sqliteDb) {
+    try {
+      sqliteDb.prepare(`
+        DELETE FROM friend_requests 
+        WHERE (sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)
+      `).run(senderId, receiverId, receiverId, senderId);
+    } catch (e) {}
+  }
 }
 
 function dbGetAllRooms() {
@@ -619,6 +687,111 @@ io.on('connection', (socket) => {
       userId: user.id,
       status: 'online',
       lastSeen: new Date().toISOString()
+    });
+  });
+
+  // Send Friend Request (Image 2 - Lời mời kết bạn)
+  socket.on('friend:send_request', ({ targetUserId }) => {
+    if (!currentUser || !targetUserId || currentUser.id === targetUserId) return;
+
+    const me = dbFindUserById(currentUser.id);
+    const target = dbFindUserById(targetUserId);
+    if (!me || !target) return;
+
+    const myFriends = Array.isArray(me.friends) ? me.friends : [];
+    if (myFriends.includes(targetUserId)) {
+      socket.emit('friend:alert', { message: 'Hai bạn đã là bạn bè của nhau rồi!' });
+      return;
+    }
+
+    // Check if target already sent a request to me (mutual intent) -> auto accept!
+    const incomingReq = sqliteDb ? sqliteDb.prepare('SELECT id FROM friend_requests WHERE sender_id = ? AND receiver_id = ?').get(targetUserId, currentUser.id) : null;
+    if (incomingReq) {
+      dbDeleteFriendRequest(targetUserId, currentUser.id);
+      let targetFriends = Array.isArray(target.friends) ? target.friends : [];
+      if (!myFriends.includes(targetUserId)) myFriends.push(targetUserId);
+      if (!targetFriends.includes(currentUser.id)) targetFriends.push(currentUser.id);
+
+      dbUpdateUserFriends(me.id, myFriends);
+      dbUpdateUserFriends(target.id, targetFriends);
+
+      io.to(`user_${targetUserId}`).emit('friend:added', {
+        friend: safeUser(me, isUserOnline(me.id)),
+        message: `${me.name} đã chấp nhận kết bạn!`
+      });
+      io.to(`user_${currentUser.id}`).emit('friend:added', {
+        friend: safeUser(target, isUserOnline(target.id)),
+        message: `Đã kết bạn thành công với ${target.name}!`
+      });
+      io.emit('users:list_updated', dbGetAllUsers().map(u => safeUser(u, isUserOnline(u.id))));
+      return;
+    }
+
+    dbInsertFriendRequest(currentUser.id, targetUserId);
+
+    io.to(`user_${targetUserId}`).emit('friend:request_received', {
+      sender: safeUser(me, isUserOnline(me.id)),
+      requests: dbGetFriendRequestsForUser(targetUserId),
+      message: `${me.name} đã gửi lời mời kết bạn cho bạn!`
+    });
+
+    socket.emit('friend:request_sent', {
+      targetUserId,
+      sentRequests: dbGetSentFriendRequestsForUser(currentUser.id),
+      message: `Đã gửi lời mời kết bạn tới ${target.name}!`
+    });
+  });
+
+  // Accept Friend Request
+  socket.on('friend:accept', ({ senderId }) => {
+    if (!currentUser || !senderId) return;
+
+    const me = dbFindUserById(currentUser.id);
+    const sender = dbFindUserById(senderId);
+    if (!me || !sender) return;
+
+    dbDeleteFriendRequest(senderId, currentUser.id);
+
+    let myFriends = Array.isArray(me.friends) ? me.friends : [];
+    let senderFriends = Array.isArray(sender.friends) ? sender.friends : [];
+
+    if (!myFriends.includes(senderId)) myFriends.push(senderId);
+    if (!senderFriends.includes(currentUser.id)) senderFriends.push(currentUser.id);
+
+    dbUpdateUserFriends(me.id, myFriends);
+    dbUpdateUserFriends(sender.id, senderFriends);
+
+    io.to(`user_${senderId}`).emit('friend:added', {
+      friend: safeUser(me, isUserOnline(me.id)),
+      message: `${me.name} đã chấp nhận lời mời kết bạn của bạn!`
+    });
+
+    io.to(`user_${currentUser.id}`).emit('friend:added', {
+      friend: safeUser(sender, isUserOnline(sender.id)),
+      message: `Đã chấp nhận kết bạn với ${sender.name}!`
+    });
+
+    socket.emit('friend:requests_updated', {
+      requests: dbGetFriendRequestsForUser(currentUser.id)
+    });
+
+    io.emit('users:list_updated', dbGetAllUsers().map(u => safeUser(u, isUserOnline(u.id))));
+  });
+
+  // Reject Friend Request
+  socket.on('friend:reject', ({ senderId }) => {
+    if (!currentUser || !senderId) return;
+    dbDeleteFriendRequest(senderId, currentUser.id);
+    socket.emit('friend:requests_updated', {
+      requests: dbGetFriendRequestsForUser(currentUser.id)
+    });
+  });
+
+  // Get Friend Requests
+  socket.on('friend:get_requests', () => {
+    if (!currentUser) return;
+    socket.emit('friend:requests_updated', {
+      requests: dbGetFriendRequestsForUser(currentUser.id)
     });
   });
 

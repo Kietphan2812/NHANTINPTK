@@ -2175,8 +2175,16 @@
       card.className = 'search-user-card';
 
       let actionBtnHtml = '';
-      if (u.isFriend) {
+      const isAlreadyFriend = (currentUser.friends || []).includes(u.id);
+      const isIncoming = (currentUser.friendRequestsReceived || []).some(r => r.sender_id === u.id);
+      const isOutgoing = (currentUser.friendRequestsSent || []).includes(u.id);
+
+      if (isAlreadyFriend) {
         actionBtnHtml = `<button class="btn-card-action chat-btn" data-action="chat">Nhắn tin</button>`;
+      } else if (isIncoming) {
+        actionBtnHtml = `<button class="btn-card-action add-btn" data-action="accept">Chấp nhận kết bạn</button>`;
+      } else if (isOutgoing) {
+        actionBtnHtml = `<button class="btn-card-action disabled-btn" disabled>Đã gửi lời mời</button>`;
       } else {
         actionBtnHtml = `<button class="btn-card-action add-btn" data-action="add">Kết bạn</button>`;
       }
@@ -2211,25 +2219,16 @@
               status: u.status === 'online' ? 'Đang hoạt động' : 'Ngoại tuyến',
               bio: u.bio
             });
-          } else if (action === 'add') {
-            socket.emit('friend:add_direct', { targetUserId: u.id });
-            btnAction.textContent = 'Đang kết nối...';
+          } else if (action === 'accept') {
+            socket.emit('friend:accept', { senderId: u.id });
+            btnAction.textContent = 'Đã chấp nhận';
             btnAction.className = 'btn-card-action disabled-btn';
             btnAction.disabled = true;
-
-            setTimeout(() => {
-              addFriendModal.style.display = 'none';
-              selectTarget({
-                id: u.id,
-                name: u.name,
-                avatar: u.avatar,
-                phone: u.phone,
-                tag: u.tag,
-                isGroup: false,
-                status: u.status === 'online' ? 'Đang hoạt động' : 'Ngoại tuyến',
-                bio: u.bio
-              });
-            }, 300);
+          } else if (action === 'add') {
+            socket.emit('friend:send_request', { targetUserId: u.id });
+            btnAction.textContent = 'Đã gửi lời mời';
+            btnAction.className = 'btn-card-action disabled-btn';
+            btnAction.disabled = true;
           }
         });
       }
@@ -2279,8 +2278,49 @@
     socket.on('users:list_updated', (updatedUsers) => {
       allUsers = updatedUsers;
       const me = allUsers.find(u => u.id === currentUser.id);
-      if (me) currentUser = me;
+      if (me) {
+        currentUser.friends = me.friends || [];
+        currentUser.friendRequestsReceived = me.friendRequestsReceived || currentUser.friendRequestsReceived || [];
+        currentUser.friendRequestsSent = me.friendRequestsSent || currentUser.friendRequestsSent || [];
+      }
       renderSidebarContent();
+      const contactsPage = document.getElementById('contacts-full-page');
+      if (contactsPage && contactsPage.style.display !== 'none') {
+        const activeNav = document.querySelector('.contacts-nav-item.active');
+        const viewType = activeNav ? activeNav.dataset.contactView : 'friends';
+        renderContactsFullPage(viewType);
+      }
+    });
+
+    socket.on('friend:request_received', ({ sender, requests, message }) => {
+      currentUser.friendRequestsReceived = requests || [];
+      playNotificationDing();
+      alert(message || `${sender.name} đã gửi lời mời kết bạn!`);
+      const contactsPage = document.getElementById('contacts-full-page');
+      if (contactsPage && contactsPage.style.display !== 'none') {
+        const activeNav = document.querySelector('.contacts-nav-item.active');
+        const viewType = activeNav ? activeNav.dataset.contactView : 'friends';
+        renderContactsFullPage(viewType);
+      }
+    });
+
+    socket.on('friend:request_sent', ({ targetUserId, sentRequests, message }) => {
+      currentUser.friendRequestsSent = sentRequests || [];
+      alert(message || 'Đã gửi lời mời kết bạn!');
+    });
+
+    socket.on('friend:requests_updated', ({ requests }) => {
+      currentUser.friendRequestsReceived = requests || [];
+      const contactsPage = document.getElementById('contacts-full-page');
+      if (contactsPage && contactsPage.style.display !== 'none') {
+        const activeNav = document.querySelector('.contacts-nav-item.active');
+        const viewType = activeNav ? activeNav.dataset.contactView : 'friends';
+        renderContactsFullPage(viewType);
+      }
+    });
+
+    socket.on('friend:alert', ({ message }) => {
+      alert(message);
     });
 
     socket.on('friend:added', ({ friend, message }) => {
@@ -2288,8 +2328,20 @@
       if (!currentUser.friends.includes(friend.id)) {
         currentUser.friends.push(friend.id);
       }
+      if (Array.isArray(currentUser.friendRequestsReceived)) {
+        currentUser.friendRequestsReceived = currentUser.friendRequestsReceived.filter(r => r.sender_id !== friend.id);
+      }
+      if (Array.isArray(currentUser.friendRequestsSent)) {
+        currentUser.friendRequestsSent = currentUser.friendRequestsSent.filter(id => id !== friend.id);
+      }
       playNotificationDing();
       renderSidebarContent();
+      const contactsPage = document.getElementById('contacts-full-page');
+      if (contactsPage && contactsPage.style.display !== 'none') {
+        const activeNav = document.querySelector('.contacts-nav-item.active');
+        const viewType = activeNav ? activeNav.dataset.contactView : 'friends';
+        renderContactsFullPage(viewType);
+      }
     });
 
     socket.on('friend:removed', ({ removedFriendId }) => {
@@ -2300,6 +2352,12 @@
         messagesStream.innerHTML = '';
       }
       renderSidebarContent();
+      const contactsPage = document.getElementById('contacts-full-page');
+      if (contactsPage && contactsPage.style.display !== 'none') {
+        const activeNav = document.querySelector('.contacts-nav-item.active');
+        const viewType = activeNav ? activeNav.dataset.contactView : 'friends';
+        renderContactsFullPage(viewType);
+      }
     });
 
     socket.on('room:created', ({ room }) => {
@@ -2787,17 +2845,6 @@
     renderSidebarContent();
   }
 
-  // Sample contacts from Image 2 to populate contacts view nicely
-  const SAMPLE_CONTACTS = [
-    { id: 'sample_b0o', name: 'B0O', tag: 'Đồng nghiệp', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80', phone: '0988111222' },
-    { id: 'sample_bao', name: 'Bảo Nguyễn', tag: 'Bạn bè', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80', phone: '0977222333' },
-    { id: 'sample_bon', name: 'Đào Duy Bôn', tag: '', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&q=80', phone: '0966333444' },
-    { id: 'sample_dinh', name: 'Đính', tag: '', avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80', phone: '0955444555' },
-    { id: 'sample_khoi', name: 'Đình Khôi', tag: '', avatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&w=150&q=80', phone: '0944555666' },
-    { id: 'sample_linh', name: 'Dinh Linh', tag: '', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&q=80', phone: '0933666777' },
-    { id: 'sample_xuan_nghi', name: 'Xuân Nghi', tag: 'Đồng nghiệp', avatar: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=150&q=80', phone: '0911888999' }
-  ];
-
   function renderContactsFullPage(viewType = 'friends') {
     const scrollContainer = document.getElementById('contacts-alphabetical-scroll');
     const totalCountEl = document.getElementById('contacts-total-count');
@@ -2816,7 +2863,13 @@
     if (viewType === 'groups') {
       if (countLabelEl) countLabelEl.innerHTML = `Nhóm và cộng đồng (<span id="contacts-total-count">${allRooms.length}</span>)`;
       if (allRooms.length === 0) {
-        scrollContainer.innerHTML = '<div class="empty-contacts-state"><p>Chưa tham gia nhóm nào.</p></div>';
+        scrollContainer.innerHTML = `
+          <div class="empty-contacts-state" style="padding: 48px 20px; text-align: center; color: var(--text-muted);">
+            <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom: 12px; opacity: 0.5;"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            <p style="font-size: 0.95rem; font-weight: 600; margin-bottom: 4px; color: var(--text-main);">Chưa tham gia nhóm nào</p>
+            <p style="font-size: 0.85rem;">Tạo nhóm trò chuyện để kết nối nhiều bạn bè cùng lúc!</p>
+          </div>
+        `;
         return;
       }
       allRooms.forEach(room => {
@@ -2844,46 +2897,75 @@
     }
 
     if (viewType === 'invites') {
-      if (countLabelEl) countLabelEl.innerHTML = `Lời mời kết bạn (<span id="contacts-total-count">0</span>)`;
-      scrollContainer.innerHTML = '<div class="empty-contacts-state"><p>Không có lời mời kết bạn nào đang chờ duyệt.</p></div>';
+      const requests = (currentUser && currentUser.friendRequestsReceived) || [];
+      if (countLabelEl) countLabelEl.innerHTML = `Lời mời kết bạn (<span id="contacts-total-count">${requests.length}</span>)`;
+      if (requests.length === 0) {
+        scrollContainer.innerHTML = `
+          <div class="empty-contacts-state" style="padding: 48px 20px; text-align: center; color: var(--text-muted);">
+            <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom: 12px; opacity: 0.5;"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+            <p style="font-size: 0.95rem; font-weight: 600; margin-bottom: 4px; color: var(--text-main);">Không có lời mời kết bạn nào</p>
+            <p style="font-size: 0.85rem;">Khi có người gửi lời mời kết bạn, yêu cầu sẽ xuất hiện tại đây.</p>
+          </div>
+        `;
+        return;
+      }
+      requests.forEach(req => {
+        const item = document.createElement('div');
+        item.className = 'alphabet-friend-item friend-invite-item';
+        item.style.padding = '12px 14px';
+        item.style.borderBottom = '1px solid var(--border-color)';
+        item.innerHTML = `
+          <div class="alphabet-friend-left">
+            <div class="alphabet-avatar-wrap">
+              <img src="${req.sender_avatar || 'https://api.dicebear.com/7.x/bottts/svg?seed=' + req.sender_id}" alt="${escapeHTML(req.sender_name)}" class="alphabet-avatar">
+            </div>
+            <div class="alphabet-friend-info">
+              <div class="alphabet-friend-name" style="font-size: 0.95rem; font-weight: 600;">${escapeHTML(req.sender_name)}</div>
+              <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">${escapeHTML(req.sender_phone || req.sender_tag || '')} muốn kết bạn</div>
+            </div>
+          </div>
+          <div class="invite-actions" style="display: flex; gap: 8px;">
+            <button class="primary-btn btn-accept-invite" style="padding: 7px 16px; font-size: 0.85rem; border-radius: 6px; cursor: pointer;">Đồng ý</button>
+            <button class="secondary-danger-btn btn-reject-invite" style="padding: 7px 16px; font-size: 0.85rem; border-radius: 6px; cursor: pointer;">Từ chối</button>
+          </div>
+        `;
+        const btnAccept = item.querySelector('.btn-accept-invite');
+        const btnReject = item.querySelector('.btn-reject-invite');
+        btnAccept.addEventListener('click', (e) => {
+          e.stopPropagation();
+          socket.emit('friend:accept', { senderId: req.sender_id });
+          btnAccept.textContent = 'Đã chấp nhận';
+          btnAccept.disabled = true;
+          btnReject.style.display = 'none';
+        });
+        btnReject.addEventListener('click', (e) => {
+          e.stopPropagation();
+          socket.emit('friend:reject', { senderId: req.sender_id });
+          item.remove();
+        });
+        scrollContainer.appendChild(item);
+      });
       return;
     }
 
     if (viewType === 'group-invites') {
       if (countLabelEl) countLabelEl.innerHTML = `Lời mời vào nhóm (<span id="contacts-total-count">0</span>)`;
-      scrollContainer.innerHTML = '<div class="empty-contacts-state"><p>Không có lời mời vào nhóm nào.</p></div>';
+      scrollContainer.innerHTML = '<div class="empty-contacts-state" style="padding: 48px 20px; text-align: center; color: var(--text-muted);"><p>Không có lời mời vào nhóm nào.</p></div>';
       return;
     }
 
-    // Default: viewType === 'friends'
+    // Default: viewType === 'friends' -> ONLY real accepted friends from SQLite
     const friendIds = (currentUser && currentUser.friends) || [];
     let list = allUsers.filter(u => friendIds.includes(u.id) && u.id !== currentUser.id).map(u => ({
       id: u.id,
       name: getDisplayName(u.id, u.name),
       rawName: u.name,
-      tag: u.tag && u.tag.includes('Đồng nghiệp') ? 'Đồng nghiệp' : '',
+      tag: u.tag || '',
       avatar: u.avatar,
       phone: u.phone,
       isOnline: u.status === 'online',
       isGroup: false
     }));
-
-    // If list is small, show sample contacts from Image 2
-    SAMPLE_CONTACTS.forEach(s => {
-      if (!list.some(x => x.name.toLowerCase() === s.name.toLowerCase())) {
-        list.push({
-          id: s.id,
-          name: s.name,
-          rawName: s.name,
-          tag: s.tag,
-          avatar: s.avatar,
-          phone: s.phone,
-          isOnline: true,
-          isGroup: false,
-          isSample: true
-        });
-      }
-    });
 
     // Filter by search query
     if (query) {
@@ -2906,6 +2988,23 @@
 
     if (totalCountEl) totalCountEl.textContent = list.length;
     if (countLabelEl) countLabelEl.innerHTML = `Bạn bè (<span id="contacts-total-count">${list.length}</span>)`;
+
+    // Empty state if no friends have been added yet
+    if (list.length === 0) {
+      scrollContainer.innerHTML = `
+        <div class="empty-contacts-state" style="text-align: center; padding: 50px 20px; color: var(--text-muted);">
+          <svg viewBox="0 0 24 24" width="52" height="52" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom: 14px; opacity: 0.45;"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <p style="font-size: 1rem; font-weight: 600; margin-bottom: 6px; color: var(--text-main);">Bạn chưa có bạn bè nào trong danh bạ</p>
+          <p style="font-size: 0.85rem; max-width: 350px; margin: 0 auto 18px; line-height: 1.5;">Hãy tìm kiếm bạn bè bằng số điện thoại hoặc tên tài khoản để kết bạn và trò chuyện!</p>
+          <button id="btn-contacts-find-friend" class="primary-btn" style="padding: 9px 22px; border-radius: 20px; font-size: 0.88rem; cursor: pointer;">+ Thêm Bạn Bè Mới</button>
+        </div>
+      `;
+      const btnFind = document.getElementById('btn-contacts-find-friend');
+      if (btnFind && btnOpenAddFriend) {
+        btnFind.addEventListener('click', () => btnOpenAddFriend.click());
+      }
+      return;
+    }
 
     // Sort list
     list.sort((a, b) => {
