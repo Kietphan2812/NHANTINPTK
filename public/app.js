@@ -410,6 +410,65 @@
         navigator.clearAppBadge().catch(() => {});
       }
     }
+
+    // 5. Update Contacts & Communities Notification Counts
+    updateContactsNavBadges();
+  }
+
+  function updateContactsNavBadges() {
+    if (!currentUser) return;
+
+    // 1. Total Friends Count
+    const friendsCount = Array.isArray(currentUser.friends) ? currentUser.friends.length : 0;
+    const badgeFriends = document.getElementById('badge-nav-friends');
+    if (badgeFriends) {
+      badgeFriends.textContent = friendsCount;
+    }
+
+    // 2. Total Groups & Communities
+    const groupsCount = (allRooms || []).length;
+    const badgeGroups = document.getElementById('badge-nav-groups');
+    if (badgeGroups) {
+      badgeGroups.textContent = groupsCount;
+    }
+
+    // 3. Friend Requests Received (Pending - Red Badge)
+    const requests = Array.isArray(currentUser.friendRequestsReceived) ? currentUser.friendRequestsReceived : [];
+    const badgeInvites = document.getElementById('badge-nav-invites');
+    if (badgeInvites) {
+      if (requests.length > 0) {
+        badgeInvites.textContent = requests.length;
+        badgeInvites.style.display = 'inline-flex';
+      } else {
+        badgeInvites.style.display = 'none';
+      }
+    }
+
+    // 4. Group Invites
+    const badgeGroupInvites = document.getElementById('badge-nav-group-invites');
+    if (badgeGroupInvites) {
+      badgeGroupInvites.textContent = '0';
+    }
+
+    // 5. Left Rail & Mobile Bottom Nav Badge for Contacts (Danh ba)
+    const railFriendsBadge = document.getElementById('rail-friends-badge');
+    const mobileFriendsBadge = document.getElementById('mobile-friends-badge');
+    if (railFriendsBadge) {
+      if (requests.length > 0) {
+        railFriendsBadge.textContent = requests.length > 99 ? '99+' : requests.length;
+        railFriendsBadge.style.display = 'inline-block';
+      } else {
+        railFriendsBadge.style.display = 'none';
+      }
+    }
+    if (mobileFriendsBadge) {
+      if (requests.length > 0) {
+        mobileFriendsBadge.textContent = requests.length > 99 ? '99+' : requests.length;
+        mobileFriendsBadge.style.display = 'inline-block';
+      } else {
+        mobileFriendsBadge.style.display = 'none';
+      }
+    }
   }
 
   function requestNotificationPermission() {
@@ -3231,6 +3290,7 @@
     if (contactsPage) contactsPage.style.display = 'flex';
 
     currentSidebarTab = 'contacts';
+    updateContactsNavBadges();
     renderContactsFullPage('friends');
   }
 

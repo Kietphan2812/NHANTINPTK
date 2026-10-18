@@ -68,6 +68,7 @@
         </button>
         <button class="rail-btn" data-rail-tab="friends" id="rail-btn-friends" title="Danh bạ">
           <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <span class="rail-unread-badge red-badge" id="rail-friends-badge" style="display: none;">0</span>
         </button>
         <button class="rail-btn" id="rail-btn-todo" title="Nhắc việc & To-Do">
           <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
@@ -195,25 +196,29 @@
           <div class="nav-item-icon">
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
           </div>
-          <span>Danh sách bạn bè</span>
+          <span class="contacts-nav-label">Danh sách bạn bè</span>
+          <span class="contacts-nav-badge" id="badge-nav-friends">0</span>
         </div>
         <div class="contacts-nav-item" data-contact-view="groups" id="nav-item-groups">
           <div class="nav-item-icon">
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
           </div>
-          <span>Danh sách nhóm và cộng đồng</span>
+          <span class="contacts-nav-label">Danh sách nhóm và cộng đồng</span>
+          <span class="contacts-nav-badge" id="badge-nav-groups">0</span>
         </div>
         <div class="contacts-nav-item" data-contact-view="invites" id="nav-item-invites">
           <div class="nav-item-icon">
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
           </div>
-          <span>Lời mời kết bạn</span>
+          <span class="contacts-nav-label">Lời mời kết bạn</span>
+          <span class="contacts-nav-badge red-badge" id="badge-nav-invites" style="display: none;">0</span>
         </div>
         <div class="contacts-nav-item" data-contact-view="group-invites" id="nav-item-group-invites">
           <div class="nav-item-icon">
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
           </div>
-          <span>Lời mời vào nhóm và cộng đồng</span>
+          <span class="contacts-nav-label">Lời mời vào nhóm và cộng đồng</span>
+          <span class="contacts-nav-badge" id="badge-nav-group-invites" style="display: none;">0</span>
         </div>
       </div>
 
@@ -227,7 +232,10 @@
           <span>Tin nhắn</span>
         </button>
         <button class="mobile-nav-btn" data-tab="friends">
-          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <div class="mobile-nav-icon-wrap">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            <span class="mobile-unread-badge red-badge" id="mobile-friends-badge" style="display: none;">0</span>
+          </div>
           <span>Danh bạ</span>
         </button>
         <button class="mobile-nav-btn" id="btn-mobile-install-app" title="Cài đặt Ứng dụng">
