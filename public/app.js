@@ -3108,7 +3108,9 @@
       }
     });
 
+    const btnViewAllLinks = document.getElementById('btn-view-all-links');
     if (foundLinks.length > 0) {
+      if (btnViewAllLinks) btnViewAllLinks.style.display = 'block';
       linksContainer.innerHTML = '';
       foundLinks.slice(-4).reverse().forEach(link => {
         const card = document.createElement('div');
@@ -3129,47 +3131,8 @@
         linksContainer.appendChild(card);
       });
     } else {
-      // Sample links matching Image 1 exactly
-      linksContainer.innerHTML = `
-        <div class="shared-link-card">
-          <div class="link-icon-box">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-          </div>
-          <div class="link-card-body">
-            <div class="link-title">Cổng Bình Chọn Trực Tuyến MUCE 2026</div>
-            <div class="link-sub-row">
-              <span class="link-domain">binhchon-muce.onrender.com</span>
-              <span class="link-date">Hôm qua</span>
-            </div>
-          </div>
-        </div>
-        <div class="shared-link-card">
-          <div class="link-icon-box">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-          </div>
-          <div class="link-card-body">
-            <div class="link-title">Cổng Bình Chọn Trực Tuyến MUCE 2026</div>
-            <div class="link-sub-row">
-              <span class="link-domain">binhchon-muce.onrender.com</span>
-              <span class="link-date">Hôm qua</span>
-            </div>
-          </div>
-        </div>
-        <div class="shared-link-card">
-          <div class="link-icon-box">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-          </div>
-          <div class="link-card-body">
-            <div class="link-title">Cổng Bình Chọn Trực Tuyến MUCE 2026</div>
-            <div class="link-sub-row">
-              <span class="link-domain">binhchon-muce.onrender.com</span>
-              <span class="link-date">Hôm qua</span>
-            </div>
-          </div>
-        </div>
-      `;
-      const cards = linksContainer.querySelectorAll('.shared-link-card');
-      cards.forEach(c => c.addEventListener('click', () => window.open('https://binhchon-muce.onrender.com', '_blank')));
+      if (btnViewAllLinks) btnViewAllLinks.style.display = 'none';
+      linksContainer.innerHTML = '<p class="empty-media-text" style="color: var(--text-muted); font-size: 0.82rem; padding: 12px 6px; text-align: center; margin: 0;">Chưa có liên kết nào được chia sẻ</p>';
     }
   }
 
