@@ -344,6 +344,108 @@ async function initNeonCloudDatabase() {
       saveJSONDB(jsonDb);
     }
 
+    // 2. Load and sync all messages from Neon Cloud PostgreSQL (Permanent Storage)
+    const pgMessages = await client.query('SELECT * FROM messages ORDER BY timestamp ASC');
+    if (pgMessages.rows && pgMessages.rows.length > 0) {
+      console.log(`Synced ${pgMessages.rows.length} messages from Neon Cloud PostgreSQL`);
+      pgMessages.rows.forEach(m => {
+        if (sqliteDb) {
+          try {
+            sqliteDb.prepare(`
+              INSERT OR REPLACE INTO messages (
+                id, sender_id, sender_name, sender_avatar, target_id, is_group,
+                text, image_url, file_url, file_name, reply_to, reactions,
+                is_pinned, recalled, timestamp, message_type, extra_data
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `).run(
+              m.id, m.sender_id, m.sender_name, m.sender_avatar, m.target_id,
+              m.is_group ? 1 : 0, m.text || '', m.image_url, m.file_url, m.file_name,
+              typeof m.reply_to === 'string' ? m.reply_to : (m.reply_to ? JSON.stringify(m.reply_to) : null),
+              typeof m.reactions === 'string' ? m.reactions : JSON.stringify(m.reactions || {}),
+              m.is_pinned ? 1 : 0, m.recalled ? 1 : 0, Number(m.timestamp),
+              m.message_type || 'normal',
+              typeof m.extra_data === 'string' ? m.extra_data : JSON.stringify(m.extra_data || {})
+            );
+          } catch (e) {
+            console.warn('Error syncing message to sqlite:', e.message);
+          }
+        }
+        const existing = jsonDb.messages.find(x => x.id === m.id);
+        if (!existing) {
+          jsonDb.messages.push({
+            id: m.id,
+            senderId: m.sender_id,
+            senderName: m.sender_name,
+            senderAvatar: m.sender_avatar,
+            targetId: m.target_id,
+            isGroup: m.is_group === 1 || m.is_group === true,
+            text: m.text,
+            imageUrl: m.image_url,
+            fileUrl: m.file_url,
+            fileName: m.file_name,
+            messageType: m.message_type || 'normal',
+            extraData: typeof m.extra_data === 'string' ? JSON.parse(m.extra_data || '{}') : (m.extra_data || {}),
+            replyTo: m.reply_to ? (typeof m.reply_to === 'string' ? JSON.parse(m.reply_to) : m.reply_to) : null,
+            reactions: typeof m.reactions === 'string' ? JSON.parse(m.reactions || '{}') : (m.reactions || {}),
+            isPinned: m.is_pinned === 1 || m.is_pinned === true,
+            recalled: m.recalled === 1 || m.recalled === true,
+            timestamp: Number(m.timestamp)
+          });
+        }
+      });
+      saveJSONDB(jsonDb);
+    }
+
+    // 3. Load and sync all rooms from Neon Cloud PostgreSQL
+    const pgRooms = await client.query('SELECT * FROM rooms');
+    if (pgRooms.rows && pgRooms.rows.length > 0) {
+      console.log(`Synced ${pgRooms.rows.length} rooms from Neon Cloud PostgreSQL`);
+      pgRooms.rows.forEach(r => {
+        if (sqliteDb) {
+          try {
+            sqliteDb.prepare(`
+              INSERT OR REPLACE INTO rooms (id, name, creator_id, creator_name, avatar, description, members, created_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            `).run(
+              r.id, r.name, r.creator_id, r.creator_name, r.avatar, r.description,
+              typeof r.members === 'string' ? r.members : JSON.stringify(r.members || []),
+              Number(r.created_at || Date.now())
+            );
+          } catch (e) {}
+        }
+        const existing = jsonDb.rooms.find(x => x.id === r.id);
+        if (!existing) {
+          jsonDb.rooms.push({
+            id: r.id,
+            name: r.name,
+            creatorId: r.creator_id,
+            creatorName: r.creator_name,
+            avatar: r.avatar,
+            description: r.description,
+            members: typeof r.members === 'string' ? JSON.parse(r.members || '[]') : (r.members || []),
+            createdAt: Number(r.created_at || Date.now())
+          });
+        }
+      });
+      saveJSONDB(jsonDb);
+    }
+
+    // 4. Load and sync friend requests from Neon Cloud PostgreSQL
+    const pgReqs = await client.query('SELECT * FROM friend_requests');
+    if (pgReqs.rows && pgReqs.rows.length > 0) {
+      console.log(`Synced ${pgReqs.rows.length} friend requests from Neon Cloud PostgreSQL`);
+      pgReqs.rows.forEach(fr => {
+        if (sqliteDb) {
+          try {
+            sqliteDb.prepare(`
+              INSERT OR REPLACE INTO friend_requests (id, sender_id, receiver_id, created_at)
+              VALUES (?, ?, ?, ?)
+            `).run(fr.id, fr.sender_id, fr.receiver_id, Number(fr.created_at));
+          } catch (e) {}
+        }
+      });
+    }
+
     client.release();
   } catch (err) {
     console.warn('⚠️ Neon PostgreSQL connection warning:', err.message);
@@ -568,22 +670,21 @@ function dbGetSentFriendRequestsForUser(userId) {
 }
 
 function dbInsertFriendRequest(senderId, receiverId) {
+  const id = `freq_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
   if (sqliteDb) {
     try {
       const existing = sqliteDb.prepare('SELECT id FROM friend_requests WHERE sender_id = ? AND receiver_id = ?').get(senderId, receiverId);
       if (!existing) {
-        const id = `freq_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
         sqliteDb.prepare('INSERT INTO friend_requests (id, sender_id, receiver_id, created_at) VALUES (?, ?, ?, ?)').run(
           id, senderId, receiverId, Date.now()
         );
-        return id;
+      } else {
+        return existing.id;
       }
-      return existing.id;
-    } catch (e) {
-      return null;
-    }
+    } catch (e) {}
   }
-  return null;
+  pgRun('INSERT INTO friend_requests (id, sender_id, receiver_id, created_at) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING', [id, senderId, receiverId, Date.now()]);
+  return id;
 }
 
 function dbDeleteFriendRequest(senderId, receiverId) {
@@ -595,6 +696,7 @@ function dbDeleteFriendRequest(senderId, receiverId) {
       `).run(senderId, receiverId, receiverId, senderId);
     } catch (e) {}
   }
+  pgRun('DELETE FROM friend_requests WHERE (sender_id = $1 AND receiver_id = $2) OR (sender_id = $2 AND receiver_id = $1)', [senderId, receiverId]);
 }
 
 function dbGetAllRooms() {
@@ -622,6 +724,20 @@ function dbInsertRoom(room) {
   jsonDb.rooms = jsonDb.rooms.filter(r => r.id !== room.id);
   jsonDb.rooms.push(room);
   saveJSONDB(jsonDb);
+
+  // Sync to Neon Cloud PostgreSQL
+  pgRun(`
+    INSERT INTO rooms (id, name, creator_id, creator_name, avatar, description, members, created_at)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    ON CONFLICT (id) DO UPDATE SET
+      name = EXCLUDED.name,
+      avatar = EXCLUDED.avatar,
+      description = EXCLUDED.description,
+      members = EXCLUDED.members
+  `, [
+    room.id, room.name, room.creatorId, room.creatorName, room.avatar,
+    room.description, JSON.stringify(room.members || []), room.createdAt || Date.now()
+  ]);
 }
 
 function dbDeleteRoom(roomId) {
@@ -632,6 +748,10 @@ function dbDeleteRoom(roomId) {
   jsonDb.rooms = jsonDb.rooms.filter(r => r.id !== roomId);
   jsonDb.messages = jsonDb.messages.filter(m => m.targetId !== roomId);
   saveJSONDB(jsonDb);
+
+  // Sync delete to Neon Cloud PostgreSQL
+  pgRun('DELETE FROM rooms WHERE id = $1', [roomId]);
+  pgRun('DELETE FROM messages WHERE target_id = $1', [roomId]);
 }
 
 function dbInsertMessage(msg) {
@@ -1587,6 +1707,7 @@ io.on('connection', (socket) => {
       }
 
       sqliteDb.prepare('UPDATE messages SET reactions = ? WHERE id = ?').run(JSON.stringify(reactions), messageId);
+      pgRun('UPDATE messages SET reactions = $1 WHERE id = $2', [JSON.stringify(reactions), messageId]);
       io.emit('message:reaction_updated', { messageId, reactions, targetId: row.target_id, isGroup: row.is_group === 1 });
     }
   });
@@ -1598,6 +1719,7 @@ io.on('connection', (socket) => {
       const row = sqliteDb.prepare('SELECT * FROM messages WHERE id = ?').get(messageId);
       if (!row || row.sender_id !== currentUser.id) return;
       sqliteDb.prepare(`UPDATE messages SET recalled = 1, text = 'Tin nhắn đã được thu hồi', image_url = NULL, file_url = NULL, reactions = '{}' WHERE id = ?`).run(messageId);
+      pgRun("UPDATE messages SET recalled = 1, text = 'Tin nhắn đã được thu hồi', image_url = NULL, file_url = NULL, reactions = '{}' WHERE id = $1", [messageId]);
       io.emit('message:recalled', { messageId, targetId: row.target_id, isGroup: row.is_group === 1 });
     }
   });
