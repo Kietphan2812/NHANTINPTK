@@ -75,11 +75,14 @@
 
   const imageUploadPreview = document.getElementById('image-upload-preview');
   const previewThumbImg = document.getElementById('preview-thumb-img');
+  const previewDocIcon = document.getElementById('preview-doc-icon');
   const previewFilename = document.getElementById('preview-filename');
+  const previewFilesize = document.getElementById('preview-filesize');
   const btnRemovePreviewImage = document.getElementById('btn-remove-preview-image');
 
   // Chat input & Voice recording
   const fileInput = document.getElementById('file-input');
+  const docFileInput = document.getElementById('doc-file-input');
   const btnAttachImage = document.getElementById('btn-attach-image');
   const btnRecordVoice = document.getElementById('btn-record-voice');
   const voiceRecordingBar = document.getElementById('voice-recording-bar');
@@ -218,6 +221,7 @@
   let lastMessageMap = {};
   let replyingTo = null;
   let pendingImageFile = null;
+  let pendingAttachmentFile = null;
   let typingTimer = null;
   let isTyping = false;
   let currentSidebarTab = 'messages'; // 'messages' | 'friends'
@@ -258,6 +262,30 @@
       audioCtx.resume();
     }
     return audioCtx;
+  }
+
+  function showToast(text, duration = 3000) {
+    let toast = document.getElementById('app-toast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'app-toast';
+      toast.className = 'app-toast';
+      document.body.appendChild(toast);
+    }
+    toast.textContent = text;
+    toast.classList.add('show');
+    clearTimeout(toast._timer);
+    toast._timer = setTimeout(() => {
+      toast.classList.remove('show');
+    }, duration);
+  }
+
+  function formatFileSize(bytes) {
+    if (!bytes || bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   }
 
   const CLOUD_AVATAR = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><linearGradient id="cg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%230068ff"/><stop offset="100%" stop-color="%2300a8ff"/></linearGradient></defs><circle cx="50" cy="50" r="50" fill="url(%23cg)"/><path d="M68 53h-2.5A16 16 0 1 0 34 68h34a10 10 0 0 0 0-15z" fill="white"/></svg>';
@@ -743,30 +771,82 @@
       });
     });
 
-    // Image Attachment
+    // Attachment File Handling (Images & All Document/File Types)
+    function handleFileSelection(file) {
+      if (!file) return;
+      if (file.size > 50 * 1024 * 1024) {
+        alert('Dung lượng tệp vượt quá giới hạn cho phép (50MB)!');
+        return;
+      }
+      pendingAttachmentFile = file;
+      pendingImageFile = file.type && file.type.startsWith('image/') ? file : null;
+
+      if (file.type && file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          previewThumbImg.src = event.target.result;
+          previewThumbImg.style.display = 'block';
+          if (previewDocIcon) previewDocIcon.style.display = 'none';
+          previewFilename.textContent = file.name;
+          if (previewFilesize) previewFilesize.textContent = formatFileSize(file.size);
+          imageUploadPreview.style.display = 'flex';
+        };
+        reader.readAsDataURL(file);
+      } else {
+        previewThumbImg.style.display = 'none';
+        if (previewDocIcon) previewDocIcon.style.display = 'flex';
+        previewFilename.textContent = file.name;
+        if (previewFilesize) previewFilesize.textContent = formatFileSize(file.size);
+        imageUploadPreview.style.display = 'flex';
+      }
+    }
+
     btnAttachImage.addEventListener('click', () => {
       fileInput.click();
     });
     fileInput.addEventListener('change', (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
-      if (!file.type.startsWith('image/')) {
-        alert('Vui lòng chọn tệp hình ảnh!');
-        return;
-      }
-      pendingImageFile = file;
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        previewThumbImg.src = event.target.result;
-        previewFilename.textContent = file.name;
-        imageUploadPreview.style.display = 'flex';
-      };
-      reader.readAsDataURL(file);
+      const file = e.target.files && e.target.files[0];
+      handleFileSelection(file);
     });
+
+    if (docFileInput) {
+      docFileInput.addEventListener('change', (e) => {
+        const file = e.target.files && e.target.files[0];
+        handleFileSelection(file);
+      });
+    }
+
     btnRemovePreviewImage.addEventListener('click', () => {
+      pendingAttachmentFile = null;
       pendingImageFile = null;
       fileInput.value = '';
+      if (docFileInput) docFileInput.value = '';
       imageUploadPreview.style.display = 'none';
+    });
+
+    // Clipboard Paste (e.g. screenshot or copied file)
+    messageInput.addEventListener('paste', (e) => {
+      const items = (e.clipboardData || e.originalEvent?.clipboardData)?.items;
+      if (items) {
+        for (const item of items) {
+          if (item.kind === 'file') {
+            const file = item.getAsFile();
+            if (file) {
+              handleFileSelection(file);
+              break;
+            }
+          }
+        }
+      }
+    });
+
+    // Drag & Drop File into Chat
+    window.addEventListener('dragover', (e) => e.preventDefault());
+    window.addEventListener('drop', (e) => {
+      e.preventDefault();
+      if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        handleFileSelection(e.dataTransfer.files[0]);
+      }
     });
 
     // Cancel Reply
@@ -881,7 +961,8 @@
     const btnAttachFile = document.getElementById('btn-attach-file');
     if (btnAttachFile) {
       btnAttachFile.addEventListener('click', () => {
-        fileInput.click();
+        if (docFileInput) docFileInput.click();
+        else fileInput.click();
       });
     }
     const btnQuickLike = document.getElementById('btn-quick-like');
@@ -1126,7 +1207,7 @@
       btnChangeAvatarBadge.addEventListener('click', () => {
         profileAvatarFileInput.click();
       });
-      profileAvatarFileInput.addEventListener('change', (e) => {
+      profileAvatarFileInput.addEventListener('change', async (e) => {
         const file = e.target.files && e.target.files[0];
         if (file) {
           const reader = new FileReader();
@@ -1135,6 +1216,21 @@
             if (profileModalAvatar) profileModalAvatar.src = ev.target.result;
           };
           reader.readAsDataURL(file);
+
+          showToast('Đang tải ảnh đại diện lên Cloud...');
+          const formData = new FormData();
+          formData.append('file', file);
+          try {
+            const res = await fetch('/api/upload', { method: 'POST', body: formData });
+            const data = await res.json();
+            if (data.url) {
+              const profileModalAvatar = document.getElementById('profile-modal-avatar');
+              if (profileModalAvatar) profileModalAvatar.src = data.url;
+              showToast('Ảnh đại diện đã sẵn sàng!');
+            }
+          } catch (err) {
+            console.error('Avatar upload error:', err);
+          }
         }
       });
     }
@@ -1145,7 +1241,7 @@
       btnChangeCover.addEventListener('click', () => {
         profileCoverFileInput.click();
       });
-      profileCoverFileInput.addEventListener('change', (e) => {
+      profileCoverFileInput.addEventListener('change', async (e) => {
         const file = e.target.files && e.target.files[0];
         if (file) {
           const reader = new FileReader();
@@ -1154,6 +1250,21 @@
             if (coverEl) coverEl.src = ev.target.result;
           };
           reader.readAsDataURL(file);
+
+          showToast('Đang tải ảnh bìa lên Cloud...');
+          const formData = new FormData();
+          formData.append('file', file);
+          try {
+            const res = await fetch('/api/upload', { method: 'POST', body: formData });
+            const data = await res.json();
+            if (data.url) {
+              const coverEl = document.getElementById('profile-cover-img');
+              if (coverEl) coverEl.src = data.url;
+              showToast('Ảnh bìa đã sẵn sàng!');
+            }
+          } catch (err) {
+            console.error('Cover upload error:', err);
+          }
         }
       });
     }
@@ -3870,13 +3981,18 @@
     if (!currentTarget || !socket) return;
 
     const text = messageInput.value.trim();
-    if (!text && !pendingImageFile) return;
+    const fileToUpload = pendingAttachmentFile || pendingImageFile;
+
+    if (!text && !fileToUpload) return;
 
     let uploadedImageUrl = null;
+    let uploadedFileUrl = null;
+    let uploadedFileName = null;
 
-    if (pendingImageFile) {
+    if (fileToUpload) {
+      showToast('Đang tải tệp lên Cloud...');
       const formData = new FormData();
-      formData.append('file', pendingImageFile);
+      formData.append('file', fileToUpload);
 
       try {
         const uploadRes = await fetch('/api/upload', {
@@ -3884,9 +4000,18 @@
           body: formData
         });
         const uploadData = await uploadRes.json();
-        uploadedImageUrl = uploadData.url;
+        if (!uploadData.url) throw new Error(uploadData.error || 'Lỗi tải tệp lên server');
+
+        if (fileToUpload.type && fileToUpload.type.startsWith('image/')) {
+          uploadedImageUrl = uploadData.url;
+        } else {
+          uploadedFileUrl = uploadData.url;
+          uploadedFileName = fileToUpload.name;
+        }
+        showToast('Đã tải tệp lên Cloud thành công!');
       } catch (err) {
-        alert('Tải ảnh thất bại, vui lòng thử lại!');
+        console.error('File upload error:', err);
+        alert('Tải tệp thất bại: ' + (err.message || 'Vui lòng thử lại!'));
         return;
       }
     }
@@ -3896,6 +4021,8 @@
       isGroup: currentTarget.isGroup,
       text: text,
       imageUrl: uploadedImageUrl,
+      fileUrl: uploadedFileUrl,
+      fileName: uploadedFileName,
       replyTo: replyingTo ? {
         id: replyingTo.id,
         senderName: replyingTo.senderName,
@@ -3909,8 +4036,10 @@
     adjustTextareaHeight(messageInput);
     stopTyping();
 
+    pendingAttachmentFile = null;
     pendingImageFile = null;
     fileInput.value = '';
+    if (docFileInput) docFileInput.value = '';
     imageUploadPreview.style.display = 'none';
 
     replyingTo = null;

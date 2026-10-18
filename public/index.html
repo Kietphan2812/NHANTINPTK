@@ -311,18 +311,25 @@
         <button id="btn-cancel-reply" class="cancel-reply-btn" title="Hủy trả lời">✕</button>
       </div>
 
-      <!-- Floating Image Preview before sending -->
+      <!-- Floating Attachment Preview before sending -->
       <div class="image-upload-preview" id="image-upload-preview" style="display: none;">
         <div class="preview-thumb-box">
-          <img id="preview-thumb-img" src="" alt="Ảnh đính kèm">
-          <button id="btn-remove-preview-image" class="remove-preview-btn" title="Xóa ảnh">✕</button>
+          <img id="preview-thumb-img" src="" alt="Ảnh đính kèm" style="display: none;">
+          <div id="preview-doc-icon" style="display: none; width: 100%; height: 100%; align-items: center; justify-content: center; color: #0068ff;">
+            <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          </div>
+          <button id="btn-remove-preview-image" class="remove-preview-btn" title="Hủy tệp">✕</button>
         </div>
-        <span class="preview-filename" id="preview-filename">image.png</span>
+        <div class="preview-file-details">
+          <span class="preview-filename" id="preview-filename">tệp_tin.pdf</span>
+          <span class="preview-filesize" id="preview-filesize"></span>
+        </div>
       </div>
 
       <!-- Chat Input Section (Zalo Style) -->
       <footer class="chat-input-wrapper">
-        <input type="file" id="file-input" accept="image/*,audio/*,.pdf,.doc,.docx,.txt" style="display: none;">
+        <input type="file" id="file-input" accept="image/*" style="display: none;">
+        <input type="file" id="doc-file-input" accept="*/*" style="display: none;">
 
         <!-- Active Voice Recording Bar -->
         <div class="voice-recording-bar" id="voice-recording-bar" style="display: none;">
