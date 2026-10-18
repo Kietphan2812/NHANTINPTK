@@ -653,6 +653,7 @@ app.get('/api/download/desktop-app', (req, res) => {
   const batScript = `@echo off
 title Cai dat ZaloChat Desktop
 chcp 65001 >nul
+cls
 echo ======================================================
 echo    DANG CAI DAT UNG DUNG ZALOCHAT LEN MAY TINH...
 echo ======================================================
@@ -671,6 +672,9 @@ if "%BROWSER%"=="" (
     if exist "%ProgramFiles(x86)%\\Microsoft\\Edge\\Application\\msedge.exe" set BROWSER="%ProgramFiles(x86)%\\Microsoft\\Edge\\Application\\msedge.exe"
 )
 
+:: Tai file icon logo tia set cho shortcut
+powershell -Command "try { Invoke-WebRequest -Uri '%APPURL%/favicon.ico' -OutFile '%USERPROFILE%\\AppData\\Local\\ZaloChat.ico' -UseBasicParsing } catch {}" >nul 2>&1
+
 echo Set oWS = WScript.CreateObject("WScript.Shell") > %SCRIPT%
 echo sLinkFile = %SHORTCUT% >> %SCRIPT%
 echo Set oLink = oWS.CreateShortcut(sLinkFile) >> %SCRIPT%
@@ -680,6 +684,9 @@ if not "%BROWSER%"=="" (
 ) else (
     echo oLink.TargetPath = "%APPURL%" >> %SCRIPT%
 )
+if exist "%USERPROFILE%\\AppData\\Local\\ZaloChat.ico" (
+    echo oLink.IconLocation = "%USERPROFILE%\\AppData\\Local\\ZaloChat.ico, 0" >> %SCRIPT%
+)
 echo oLink.Description = "ZaloChat - Nhan tin & Goi video" >> %SCRIPT%
 echo oLink.Save >> %SCRIPT%
 
@@ -687,10 +694,12 @@ cscript /nologo %SCRIPT%
 del %SCRIPT%
 
 echo.
-echo [THANH CONG] Da tao bieu tuong ZaloChat tren man hinh Desktop!
-echo Gio ban co the mo ZaloChat truc tiep tu Desktop nhu mot ung dung may tinh!
-echo.
-timeout /t 5
+echo ======================================================
+echo  [THANH CONG] DA CAI DAT BIEU TUONG ZALOCHAT RA DESKTOP!
+echo ======================================================
+echo Dang khoi dong ung dung ZaloChat...
+start "" %SHORTCUT%
+timeout /t 3 >nul
 `;
 
   res.setHeader('Content-Type', 'application/bat');

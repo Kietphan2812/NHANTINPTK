@@ -509,6 +509,12 @@
       return;
     }
 
+    // If native PWA install prompt is ready, trigger it directly!
+    if (deferredInstallPrompt) {
+      triggerPwaInstall();
+      return;
+    }
+
     if (isIosDevice()) {
       if (pwaIosGuide) pwaIosGuide.style.display = 'block';
       if (btnTriggerPwaInstall) btnTriggerPwaInstall.style.display = 'none';
@@ -546,7 +552,10 @@
       document.body.appendChild(downloadLink);
       downloadLink.click();
       document.body.removeChild(downloadLink);
-      closePwaInstallModal();
+
+      setTimeout(() => {
+        showToast('Đã tải ZaloChat-Setup.bat! Hãy nhấn mở file ở thanh tải về để tạo biểu tượng ZaloChat trên Desktop.');
+      }, 1200);
     }
   }
 
