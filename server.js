@@ -60,6 +60,9 @@ function safeUser(u, isOnline = false) {
   }
   return {
     ...rest,
+    gender: u.gender || 'Nam',
+    dob: u.dob || '28 tháng 12, 2004',
+    cover: u.cover || 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80',
     status: isOnline ? 'online' : (u.status || 'offline'),
     friends: Array.isArray(u.friends) ? u.friends : (typeof u.friends === 'string' ? JSON.parse(u.friends || '[]') : []),
     settings: settings,
@@ -124,6 +127,9 @@ try {
 
   // Try altering existing tables for backwards compatibility
   try { sqliteDb.exec(`ALTER TABLE users ADD COLUMN settings TEXT DEFAULT '{}';`); } catch (e) {}
+  try { sqliteDb.exec(`ALTER TABLE users ADD COLUMN gender TEXT DEFAULT 'Nam';`); } catch (e) {}
+  try { sqliteDb.exec(`ALTER TABLE users ADD COLUMN dob TEXT DEFAULT '28 tháng 12, 2004';`); } catch (e) {}
+  try { sqliteDb.exec(`ALTER TABLE users ADD COLUMN cover TEXT DEFAULT 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80';`); } catch (e) {}
   try { sqliteDb.exec(`ALTER TABLE messages ADD COLUMN message_type TEXT DEFAULT 'normal';`); } catch (e) {}
   try { sqliteDb.exec(`ALTER TABLE messages ADD COLUMN extra_data TEXT DEFAULT '{}';`); } catch (e) {}
 
@@ -528,9 +534,9 @@ app.get('/api/users/search', (req, res) => {
   res.json({ results });
 });
 
-// Update user profile (Name, Bio, Avatar)
+// Update user profile (Name, Bio, Avatar, Gender, Dob, Cover, Phone)
 app.post('/api/users/profile', (req, res) => {
-  const { id, name, bio, avatar } = req.body;
+  const { id, name, bio, avatar, gender, dob, cover, phone } = req.body;
   if (!id || !name) {
     return res.status(400).json({ error: 'Thiếu thông tin người dùng' });
   }
@@ -541,15 +547,24 @@ app.post('/api/users/profile', (req, res) => {
   const newName = name.trim();
   const newBio = bio !== undefined ? bio.trim() : (user.bio || '');
   const newAvatar = avatar || user.avatar;
+  const newGender = gender || user.gender || 'Nam';
+  const newDob = dob || user.dob || '28 tháng 12, 2004';
+  const newCover = cover !== undefined ? cover : (user.cover || '');
+  const newPhone = phone ? phone.trim() : user.phone;
 
   if (sqliteDb) {
-    sqliteDb.prepare('UPDATE users SET name = ?, bio = ?, avatar = ? WHERE id = ?').run(newName, newBio, newAvatar, id);
+    sqliteDb.prepare('UPDATE users SET name = ?, bio = ?, avatar = ?, gender = ?, dob = ?, cover = ?, phone = ? WHERE id = ?')
+      .run(newName, newBio, newAvatar, newGender, newDob, newCover, newPhone, id);
   }
   const u = jsonDb.users.find(x => x.id === id);
   if (u) {
     u.name = newName;
     u.bio = newBio;
     u.avatar = newAvatar;
+    u.gender = newGender;
+    u.dob = newDob;
+    u.cover = newCover;
+    u.phone = newPhone;
     saveJSONDB(jsonDb);
   }
 
@@ -975,6 +990,28 @@ io.on('connection', (socket) => {
       sqliteDb.prepare(`UPDATE messages SET recalled = 1, text = 'Tin nhắn đã được thu hồi', image_url = NULL, file_url = NULL, reactions = '{}' WHERE id = ?`).run(messageId);
       io.emit('message:recalled', { messageId, targetId: row.target_id, isGroup: row.is_group === 1 });
     }
+  });
+
+  // Report conversation (Báo xấu)
+  socket.on('chat:report', ({ targetId, isGroup, reason, details }) => {
+    if (!currentUser || !targetId) return;
+    console.log(`[Report] User ${currentUser.id} reported ${targetId} (isGroup: ${isGroup}) for: ${reason} - ${details || ''}`);
+    socket.emit('chat:report_success', {
+      targetId,
+      message: 'Cảm ơn bạn đã gửi báo xấu. Hệ thống Zalo sẽ xem xét xử lý trong vòng 24 giờ.'
+    });
+  });
+
+  // Set Auto-delete messages duration
+  socket.on('chat:set_auto_delete', ({ targetId, duration }) => {
+    if (!currentUser || !targetId) return;
+    socket.emit('chat:auto_delete_updated', { targetId, duration });
+  });
+
+  // Set Hide conversation
+  socket.on('chat:set_hidden', ({ targetId, isHidden, pinCode }) => {
+    if (!currentUser || !targetId) return;
+    socket.emit('chat:hidden_updated', { targetId, isHidden, pinCode });
   });
 
   // Disconnect handler

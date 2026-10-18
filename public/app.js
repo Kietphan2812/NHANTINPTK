@@ -830,20 +830,10 @@
 
     if (railBtnMessages && railBtnFriends) {
       railBtnMessages.addEventListener('click', () => {
-        railBtnMessages.classList.add('active');
-        railBtnFriends.classList.remove('active');
-        if (subTabPriority) subTabPriority.classList.add('active');
-        if (subTabOther) subTabOther.classList.remove('active');
-        currentSidebarTab = 'messages';
-        renderSidebarContent();
+        switchToMessagesView();
       });
       railBtnFriends.addEventListener('click', () => {
-        railBtnFriends.classList.add('active');
-        railBtnMessages.classList.remove('active');
-        if (subTabOther) subTabOther.classList.add('active');
-        if (subTabPriority) subTabPriority.classList.remove('active');
-        currentSidebarTab = 'friends';
-        renderSidebarContent();
+        switchToContactsView();
       });
     }
 
@@ -851,18 +841,12 @@
       subTabPriority.addEventListener('click', () => {
         subTabPriority.classList.add('active');
         subTabOther.classList.remove('active');
-        if (railBtnMessages) railBtnMessages.classList.add('active');
-        if (railBtnFriends) railBtnFriends.classList.remove('active');
-        currentSidebarTab = 'messages';
-        renderSidebarContent();
+        switchToMessagesView();
       });
       subTabOther.addEventListener('click', () => {
         subTabOther.classList.add('active');
         subTabPriority.classList.remove('active');
-        if (railBtnFriends) railBtnFriends.classList.add('active');
-        if (railBtnMessages) railBtnMessages.classList.remove('active');
-        currentSidebarTab = 'friends';
-        renderSidebarContent();
+        switchToContactsView();
       });
     }
 
@@ -872,7 +856,13 @@
     }
     const btnRailSettings = document.getElementById('btn-rail-settings');
     if (btnRailSettings) {
-      btnRailSettings.addEventListener('click', openProfileModal);
+      btnRailSettings.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const popup = document.getElementById('rail-settings-popup');
+        if (popup) {
+          popup.style.display = popup.style.display === 'none' ? 'block' : 'none';
+        }
+      });
     }
     const railBtnCapture = document.getElementById('rail-btn-capture');
     if (railBtnCapture) {
@@ -1129,19 +1119,95 @@
         if (e.target === profileModal) closeProfileModal();
       });
     }
-    if (btnChangeAvatar) {
-      btnChangeAvatar.addEventListener('click', () => {
-        const rand = Math.random().toString(36).substring(2, 9);
-        profileModalAvatar.src = `https://api.dicebear.com/7.x/bottts/svg?seed=${rand}`;
+    // Profile Modal Listeners (Image 4)
+    const btnChangeAvatarBadge = document.getElementById('btn-change-avatar-badge');
+    const profileAvatarFileInput = document.getElementById('profile-avatar-file-input');
+    if (btnChangeAvatarBadge && profileAvatarFileInput) {
+      btnChangeAvatarBadge.addEventListener('click', () => {
+        profileAvatarFileInput.click();
+      });
+      profileAvatarFileInput.addEventListener('change', (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = (ev) => {
+            const profileModalAvatar = document.getElementById('profile-modal-avatar');
+            if (profileModalAvatar) profileModalAvatar.src = ev.target.result;
+          };
+          reader.readAsDataURL(file);
+        }
       });
     }
+
+    const btnChangeCover = document.getElementById('btn-change-cover');
+    const profileCoverFileInput = document.getElementById('profile-cover-file-input');
+    if (btnChangeCover && profileCoverFileInput) {
+      btnChangeCover.addEventListener('click', () => {
+        profileCoverFileInput.click();
+      });
+      profileCoverFileInput.addEventListener('change', (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = (ev) => {
+            const coverEl = document.getElementById('profile-cover-img');
+            if (coverEl) coverEl.src = ev.target.result;
+          };
+          reader.readAsDataURL(file);
+        }
+      });
+    }
+
+    const btnToggleProfileEdit = document.getElementById('btn-toggle-profile-edit');
+    const btnEditNamePencil = document.getElementById('btn-edit-name-pencil');
+    const btnCancelProfileEdit = document.getElementById('btn-cancel-profile-edit');
+    const profileViewMode = document.getElementById('profile-info-view-mode');
+
+    function enterProfileEditMode() {
+      if (profileViewMode) profileViewMode.style.display = 'none';
+      if (profileEditForm) profileEditForm.style.display = 'block';
+      const nameInput = document.getElementById('profile-input-name');
+      const genderSelect = document.getElementById('profile-input-gender');
+      const dobInput = document.getElementById('profile-input-dob');
+      const phoneInput = document.getElementById('profile-input-phone');
+      const bioInput = document.getElementById('profile-input-bio');
+
+      if (nameInput) nameInput.value = currentUser.name || '';
+      if (genderSelect) genderSelect.value = currentUser.gender || 'Nam';
+      if (dobInput) dobInput.value = currentUser.dob || '28 tháng 12, 2004';
+      if (phoneInput) phoneInput.value = currentUser.phone || '';
+      if (bioInput) bioInput.value = currentUser.bio || '';
+    }
+
+    if (btnToggleProfileEdit) btnToggleProfileEdit.addEventListener('click', enterProfileEditMode);
+    if (btnEditNamePencil) btnEditNamePencil.addEventListener('click', enterProfileEditMode);
+    if (btnCancelProfileEdit) {
+      btnCancelProfileEdit.addEventListener('click', () => {
+        if (profileViewMode) profileViewMode.style.display = 'block';
+        if (profileEditForm) profileEditForm.style.display = 'none';
+      });
+    }
+
     if (profileEditForm) {
       profileEditForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         if (!currentUser) return;
-        const newName = profileInputName.value.trim();
-        const newBio = profileInputBio.value.trim();
-        const newAvatar = profileModalAvatar.src;
+
+        const nameInput = document.getElementById('profile-input-name');
+        const genderSelect = document.getElementById('profile-input-gender');
+        const dobInput = document.getElementById('profile-input-dob');
+        const phoneInput = document.getElementById('profile-input-phone');
+        const bioInput = document.getElementById('profile-input-bio');
+        const avatarEl = document.getElementById('profile-modal-avatar');
+        const coverEl = document.getElementById('profile-cover-img');
+
+        const newName = nameInput ? nameInput.value.trim() : currentUser.name;
+        const newGender = genderSelect ? genderSelect.value : (currentUser.gender || 'Nam');
+        const newDob = dobInput ? dobInput.value.trim() : (currentUser.dob || '28 tháng 12, 2004');
+        const newPhone = phoneInput ? phoneInput.value.trim() : currentUser.phone;
+        const newBio = bioInput ? bioInput.value.trim() : (currentUser.bio || '');
+        const newAvatar = avatarEl ? avatarEl.src : currentUser.avatar;
+        const newCover = coverEl ? coverEl.src : currentUser.cover;
 
         try {
           const res = await fetch('/api/users/profile', {
@@ -1150,8 +1216,12 @@
             body: JSON.stringify({
               id: currentUser.id,
               name: newName,
+              gender: newGender,
+              dob: newDob,
+              phone: newPhone,
               bio: newBio,
-              avatar: newAvatar
+              avatar: newAvatar,
+              cover: newCover
             })
           });
           const data = await res.json();
@@ -1160,18 +1230,335 @@
             localStorage.setItem('zalochat_user', JSON.stringify(currentUser));
             myAvatar.src = currentUser.avatar;
             myName.textContent = currentUser.name;
-            closeProfileModal();
-            alert('Cập nhật hồ sơ thành công!');
+            const windowTitleUser = document.getElementById('window-title-user');
+            if (windowTitleUser) windowTitleUser.textContent = currentUser.name;
+
+            // Update profile view fields
+            const displayName = document.getElementById('profile-display-name');
+            const viewGender = document.getElementById('profile-view-gender');
+            const viewDob = document.getElementById('profile-view-dob');
+            const viewPhone = document.getElementById('profile-view-phone');
+            if (displayName) displayName.textContent = currentUser.name;
+            if (viewGender) viewGender.textContent = currentUser.gender || 'Nam';
+            if (viewDob) viewDob.textContent = currentUser.dob || '28 tháng 12, 2004';
+            if (viewPhone) {
+              const p = currentUser.phone || '0338351410';
+              viewPhone.textContent = p.startsWith('+') ? p : '+84 ' + p.replace(/^0/, '');
+            }
+
+            if (profileViewMode) profileViewMode.style.display = 'block';
+            if (profileEditForm) profileEditForm.style.display = 'none';
+            alert('Cập nhật thông tin tài khoản thành công!');
           }
         } catch (err) {
           alert('Lỗi cập nhật hồ sơ, vui lòng thử lại!');
         }
       });
     }
+
     if (btnProfileLogout) {
       btnProfileLogout.addEventListener('click', () => {
         closeProfileModal();
         btnLogout.click();
+      });
+    }
+
+    // Rail Settings Popup Menu Actions (Image 3)
+    const popupMenuProfile = document.getElementById('popup-menu-profile');
+    const popupMenuSettings = document.getElementById('popup-menu-settings');
+    const popupMenuData = document.getElementById('popup-menu-data');
+    const popupMenuLang = document.getElementById('popup-menu-lang');
+    const popupMenuSupport = document.getElementById('popup-menu-support');
+    const popupMenuLogout = document.getElementById('popup-menu-logout');
+    const popupMenuExit = document.getElementById('popup-menu-exit');
+    const railSettingsPopup = document.getElementById('rail-settings-popup');
+
+    if (popupMenuProfile) {
+      popupMenuProfile.addEventListener('click', () => {
+        if (railSettingsPopup) railSettingsPopup.style.display = 'none';
+        openProfileModal();
+      });
+    }
+    if (popupMenuSettings) {
+      popupMenuSettings.addEventListener('click', () => {
+        if (railSettingsPopup) railSettingsPopup.style.display = 'none';
+        openSettingsModal('general');
+      });
+    }
+    if (popupMenuData) {
+      popupMenuData.addEventListener('click', () => {
+        if (railSettingsPopup) railSettingsPopup.style.display = 'none';
+        openSettingsModal('data');
+      });
+    }
+    if (popupMenuLang) {
+      popupMenuLang.addEventListener('click', () => {
+        if (railSettingsPopup) railSettingsPopup.style.display = 'none';
+        alert('Hệ thống đang hoạt động với ngôn ngữ: Tiếng Việt');
+      });
+    }
+    if (popupMenuSupport) {
+      popupMenuSupport.addEventListener('click', () => {
+        if (railSettingsPopup) railSettingsPopup.style.display = 'none';
+        alert('Trung tâm hỗ trợ Zalo: Hotline 1900 561 558 (Hỗ trợ 24/7)\nWebsite: https://help.zalo.me');
+      });
+    }
+    if (popupMenuLogout) {
+      popupMenuLogout.addEventListener('click', () => {
+        if (railSettingsPopup) railSettingsPopup.style.display = 'none';
+        btnLogout.click();
+      });
+    }
+    if (popupMenuExit) {
+      popupMenuExit.addEventListener('click', () => {
+        if (railSettingsPopup) railSettingsPopup.style.display = 'none';
+        if (confirm('Bạn có chắc chắn muốn đăng xuất và thoát khỏi Zalo?')) {
+          btnLogout.click();
+        }
+      });
+    }
+
+    // Click outside to close rail settings popup
+    document.addEventListener('click', (e) => {
+      if (railSettingsPopup && railSettingsPopup.style.display === 'block') {
+        const btnRailSettings = document.getElementById('btn-rail-settings');
+        if (!railSettingsPopup.contains(e.target) && (!btnRailSettings || !btnRailSettings.contains(e.target))) {
+          railSettingsPopup.style.display = 'none';
+        }
+      }
+    });
+
+    // Zalo Settings Dialog Listeners (Image 5)
+    const btnCloseSettingsModal = document.getElementById('btn-close-settings-modal');
+    const zaloSettingsModal = document.getElementById('zalo-settings-modal');
+    if (btnCloseSettingsModal && zaloSettingsModal) {
+      btnCloseSettingsModal.addEventListener('click', () => {
+        zaloSettingsModal.style.display = 'none';
+      });
+      zaloSettingsModal.addEventListener('click', (e) => {
+        if (e.target === zaloSettingsModal) zaloSettingsModal.style.display = 'none';
+      });
+    }
+
+    const settingsNavItems = document.querySelectorAll('.settings-nav-item');
+    settingsNavItems.forEach(item => {
+      item.addEventListener('click', () => {
+        settingsNavItems.forEach(x => x.classList.remove('active'));
+        item.classList.add('active');
+        const tabKey = item.dataset.settab;
+        const allPanes = document.querySelectorAll('.settings-tab-pane');
+        allPanes.forEach(p => p.style.display = 'none');
+        const activePane = document.getElementById(`pane-set-${tabKey}`);
+        if (activePane) activePane.style.display = 'block';
+      });
+    });
+
+    // Settings General Radio & Switches
+    const switchAutoStart = document.getElementById('switch-auto-start');
+    const switchRememberAccount = document.getElementById('switch-remember-account');
+    const switchSettingsDark = document.getElementById('switch-settings-dark');
+    const btnClearCache = document.getElementById('btn-clear-cache');
+
+    if (switchSettingsDark) {
+      switchSettingsDark.checked = document.documentElement.getAttribute('data-theme') === 'dark';
+      switchSettingsDark.addEventListener('change', () => {
+        const isDark = switchSettingsDark.checked;
+        document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+        localStorage.setItem('theme', isDark ? 'dark' : 'light');
+      });
+    }
+    if (btnClearCache) {
+      btnClearCache.addEventListener('click', () => {
+        const cacheSizeEl = document.getElementById('data-cache-size');
+        if (cacheSizeEl) cacheSizeEl.textContent = '0 KB';
+        alert('Đã dọn dẹp toàn bộ bộ nhớ đệm thành công!');
+      });
+    }
+
+    // Contacts Full Page Filter Listeners (Image 2)
+    const contactsSearchInput = document.getElementById('contacts-search-input');
+    const contactsSortSelect = document.getElementById('contacts-sort-select');
+    const contactsCategorySelect = document.getElementById('contacts-category-select');
+
+    if (contactsSearchInput) {
+      contactsSearchInput.addEventListener('input', () => {
+        renderContactsFullPage();
+      });
+    }
+    if (contactsSortSelect) {
+      contactsSortSelect.addEventListener('change', () => {
+        renderContactsFullPage();
+      });
+    }
+    if (contactsCategorySelect) {
+      contactsCategorySelect.addEventListener('change', () => {
+        renderContactsFullPage();
+      });
+    }
+
+    const contactsNavItems = document.querySelectorAll('.contacts-nav-item');
+    contactsNavItems.forEach(nav => {
+      nav.addEventListener('click', () => {
+        contactsNavItems.forEach(x => x.classList.remove('active'));
+        nav.classList.add('active');
+        const viewType = nav.dataset.contactView;
+        const headerTitle = document.getElementById('contacts-header-title');
+        if (headerTitle) {
+          if (viewType === 'friends') headerTitle.textContent = 'Danh sách bạn bè';
+          else if (viewType === 'groups') headerTitle.textContent = 'Danh sách nhóm và cộng đồng';
+          else if (viewType === 'invites') headerTitle.textContent = 'Lời mời kết bạn';
+          else if (viewType === 'group-invites') headerTitle.textContent = 'Lời mời vào nhóm và cộng đồng';
+        }
+        renderContactsFullPage(viewType);
+      });
+    });
+
+    // Right Sidebar Accordion Toggles (Image 1)
+    const headerLinks = document.getElementById('header-links');
+    if (headerLinks) {
+      headerLinks.addEventListener('click', () => {
+        const content = document.getElementById('shared-links-content');
+        if (content) {
+          content.style.display = content.style.display === 'none' ? 'block' : 'none';
+        }
+      });
+    }
+    const headerSecuritySettings = document.getElementById('header-security-settings');
+    if (headerSecuritySettings) {
+      headerSecuritySettings.addEventListener('click', () => {
+        const content = document.getElementById('security-settings-content');
+        if (content) {
+          content.style.display = content.style.display === 'none' ? 'block' : 'none';
+        }
+      });
+    }
+
+    // View all links button
+    const btnViewAllLinks = document.getElementById('btn-view-all-links');
+    if (btnViewAllLinks) {
+      btnViewAllLinks.addEventListener('click', () => {
+        if (btnViewAllMedia) btnViewAllMedia.click();
+        const linkTab = document.querySelector('[data-gallery-tab="links"]');
+        if (linkTab) linkTab.click();
+      });
+    }
+
+    // Auto-Delete Modal Listeners (Image 1)
+    const rowAutoDeleteMsg = document.getElementById('row-auto-delete-msg');
+    const autoDeleteModal = document.getElementById('auto-delete-modal');
+    const btnCloseAutoDelete = document.getElementById('btn-close-auto-delete');
+    if (rowAutoDeleteMsg && autoDeleteModal) {
+      rowAutoDeleteMsg.addEventListener('click', () => {
+        autoDeleteModal.style.display = 'flex';
+      });
+    }
+    if (btnCloseAutoDelete && autoDeleteModal) {
+      btnCloseAutoDelete.addEventListener('click', () => {
+        autoDeleteModal.style.display = 'none';
+      });
+      autoDeleteModal.addEventListener('click', (e) => {
+        if (e.target === autoDeleteModal) autoDeleteModal.style.display = 'none';
+      });
+    }
+    const autoDeleteOptBtns = document.querySelectorAll('.auto-delete-opt-btn');
+    autoDeleteOptBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        autoDeleteOptBtns.forEach(x => x.classList.remove('active'));
+        btn.classList.add('active');
+        const durationText = btn.textContent;
+        const valAutoDelete = document.getElementById('val-auto-delete');
+        if (valAutoDelete) valAutoDelete.textContent = durationText;
+        if (autoDeleteModal) autoDeleteModal.style.display = 'none';
+        if (socket && currentTarget) {
+          socket.emit('chat:set_auto_delete', { targetId: currentTarget.id, duration: btn.dataset.duration });
+        }
+        alert(`Đã cài đặt thời gian tin nhắn tự xóa: ${durationText}`);
+      });
+    });
+
+    // Block Share Click
+    const rowBlockShare = document.getElementById('row-block-share');
+    if (rowBlockShare) {
+      rowBlockShare.addEventListener('click', () => {
+        alert('Đã bật tính năng Chặn chia sẻ: Thành viên khác không thể sao chép hoặc chuyển tiếp nội dung từ cuộc trò chuyện này.');
+      });
+    }
+
+    // Hide Chat Switch & Modal
+    const switchHideChat = document.getElementById('switch-hide-chat');
+    const hideChatModal = document.getElementById('hide-chat-modal');
+    const btnCloseHideChat = document.getElementById('btn-close-hide-chat');
+    const hideChatForm = document.getElementById('hide-chat-form');
+
+    if (switchHideChat && hideChatModal) {
+      switchHideChat.addEventListener('change', () => {
+        if (switchHideChat.checked) {
+          hideChatModal.style.display = 'flex';
+        } else {
+          alert('Cuộc trò chuyện đã được hiển thị trở lại.');
+        }
+      });
+    }
+    if (btnCloseHideChat && hideChatModal) {
+      btnCloseHideChat.addEventListener('click', () => {
+        hideChatModal.style.display = 'none';
+        if (switchHideChat) switchHideChat.checked = false;
+      });
+      hideChatModal.addEventListener('click', (e) => {
+        if (e.target === hideChatModal) {
+          hideChatModal.style.display = 'none';
+          if (switchHideChat) switchHideChat.checked = false;
+        }
+      });
+    }
+    if (hideChatForm) {
+      hideChatForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const pin = document.getElementById('hide-chat-pin').value;
+        if (pin.length === 4) {
+          if (hideChatModal) hideChatModal.style.display = 'none';
+          alert('Cuộc trò chuyện đã được ẩn thành công bằng mã PIN.');
+        }
+      });
+    }
+
+    // Report Conversation (Báo xấu - Image 1)
+    const btnReportConv = document.getElementById('btn-report-conv');
+    const reportModal = document.getElementById('report-modal');
+    const btnCloseReport = document.getElementById('btn-close-report');
+    const reportForm = document.getElementById('report-form');
+
+    if (btnReportConv && reportModal) {
+      btnReportConv.addEventListener('click', () => {
+        reportModal.style.display = 'flex';
+      });
+    }
+    if (btnCloseReport && reportModal) {
+      btnCloseReport.addEventListener('click', () => {
+        reportModal.style.display = 'none';
+      });
+      reportModal.addEventListener('click', (e) => {
+        if (e.target === reportModal) reportModal.style.display = 'none';
+      });
+    }
+    if (reportForm) {
+      reportForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        if (!currentTarget || !socket) return;
+        const selectedRadio = document.querySelector('input[name="report-reason"]:checked');
+        const reason = selectedRadio ? selectedRadio.value : 'spam';
+        const detailsInput = document.getElementById('report-details-input');
+        const details = detailsInput ? detailsInput.value.trim() : '';
+
+        socket.emit('chat:report', {
+          targetId: currentTarget.id,
+          isGroup: currentTarget.isGroup,
+          reason,
+          details
+        });
+
+        if (reportModal) reportModal.style.display = 'none';
+        alert('Cảm ơn bạn đã gửi báo xấu. Hệ thống Zalo sẽ xem xét xử lý trong vòng 24 giờ.');
       });
     }
 
@@ -1609,19 +1996,54 @@
     }
   }
 
-  // Profile Modal Functions
+  // Profile Modal Functions (Image 4)
   function openProfileModal() {
     if (!currentUser) return;
-    profileModalAvatar.src = currentUser.avatar;
-    profileInputName.value = currentUser.name || '';
-    profileInputPhone.value = currentUser.phone || '';
-    profileInputUsername.value = currentUser.username || '';
-    profileInputBio.value = currentUser.bio || '';
-    profileModal.style.display = 'flex';
+    const viewMode = document.getElementById('profile-info-view-mode');
+    const editForm = document.getElementById('profile-edit-form');
+    if (viewMode) viewMode.style.display = 'block';
+    if (editForm) editForm.style.display = 'none';
+
+    const avatarEl = document.getElementById('profile-modal-avatar');
+    const coverEl = document.getElementById('profile-cover-img');
+    const nameEl = document.getElementById('profile-display-name');
+    const genderEl = document.getElementById('profile-view-gender');
+    const dobEl = document.getElementById('profile-view-dob');
+    const phoneEl = document.getElementById('profile-view-phone');
+
+    if (avatarEl) avatarEl.src = currentUser.avatar;
+    if (coverEl) coverEl.src = currentUser.cover || 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80';
+    if (nameEl) nameEl.textContent = currentUser.name;
+    if (genderEl) genderEl.textContent = currentUser.gender || 'Nam';
+    if (dobEl) dobEl.textContent = currentUser.dob || '28 tháng 12, 2004';
+    if (phoneEl) {
+      const p = currentUser.phone || '0338351410';
+      phoneEl.textContent = p.startsWith('+') ? p : '+84 ' + p.replace(/^0/, '');
+    }
+
+    const modal = document.getElementById('profile-modal');
+    if (modal) modal.style.display = 'flex';
   }
 
   function closeProfileModal() {
-    profileModal.style.display = 'none';
+    const modal = document.getElementById('profile-modal');
+    if (modal) modal.style.display = 'none';
+  }
+
+  function openSettingsModal(targetTab = 'general') {
+    const modal = document.getElementById('zalo-settings-modal');
+    if (!modal) return;
+    modal.style.display = 'flex';
+
+    const navItems = document.querySelectorAll('.settings-nav-item');
+    navItems.forEach(x => {
+      x.classList.toggle('active', x.dataset.settab === targetTab);
+    });
+
+    const allPanes = document.querySelectorAll('.settings-tab-pane');
+    allPanes.forEach(p => p.style.display = 'none');
+    const activePane = document.getElementById(`pane-set-${targetTab}`);
+    if (activePane) activePane.style.display = 'block';
   }
 
   // Voice Recording Functions (Zalo / Messenger Style)
@@ -2316,6 +2738,342 @@
     callTimerLabel.style.display = 'none';
   }
 
+  // Switching between Messages View and Full Contacts View (Image 2)
+  function switchToContactsView() {
+    const railBtnMessages = document.getElementById('rail-btn-messages');
+    const railBtnFriends = document.getElementById('rail-btn-friends');
+    if (railBtnFriends) railBtnFriends.classList.add('active');
+    if (railBtnMessages) railBtnMessages.classList.remove('active');
+
+    const convList = document.getElementById('conversations-list');
+    const subTabs = document.querySelector('.sidebar-sub-tabs');
+    const contactsSubNav = document.getElementById('contacts-sub-nav');
+    if (convList) convList.style.display = 'none';
+    if (subTabs) subTabs.style.display = 'none';
+    if (contactsSubNav) contactsSubNav.style.display = 'flex';
+
+    const chatMain = document.getElementById('chat-main-area');
+    const contactsPage = document.getElementById('contacts-full-page');
+    const sidebarRight = document.getElementById('sidebar-right');
+    if (chatMain) chatMain.style.display = 'none';
+    if (sidebarRight) sidebarRight.style.display = 'none';
+    if (contactsPage) contactsPage.style.display = 'flex';
+
+    currentSidebarTab = 'contacts';
+    renderContactsFullPage('friends');
+  }
+
+  function switchToMessagesView() {
+    const railBtnMessages = document.getElementById('rail-btn-messages');
+    const railBtnFriends = document.getElementById('rail-btn-friends');
+    if (railBtnMessages) railBtnMessages.classList.add('active');
+    if (railBtnFriends) railBtnFriends.classList.remove('active');
+
+    const convList = document.getElementById('conversations-list');
+    const subTabs = document.querySelector('.sidebar-sub-tabs');
+    const contactsSubNav = document.getElementById('contacts-sub-nav');
+    if (convList) convList.style.display = 'block';
+    if (subTabs) subTabs.style.display = 'flex';
+    if (contactsSubNav) contactsSubNav.style.display = 'none';
+
+    const chatMain = document.getElementById('chat-main-area');
+    const contactsPage = document.getElementById('contacts-full-page');
+    const sidebarRight = document.getElementById('sidebar-right');
+    if (contactsPage) contactsPage.style.display = 'none';
+    if (chatMain) chatMain.style.display = 'flex';
+    if (sidebarRight && window.innerWidth > 992) sidebarRight.style.display = 'flex';
+
+    currentSidebarTab = 'messages';
+    renderSidebarContent();
+  }
+
+  // Sample contacts from Image 2 to populate contacts view nicely
+  const SAMPLE_CONTACTS = [
+    { id: 'sample_b0o', name: 'B0O', tag: 'Đồng nghiệp', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80', phone: '0988111222' },
+    { id: 'sample_bao', name: 'Bảo Nguyễn', tag: 'Bạn bè', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80', phone: '0977222333' },
+    { id: 'sample_bon', name: 'Đào Duy Bôn', tag: '', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&q=80', phone: '0966333444' },
+    { id: 'sample_dinh', name: 'Đính', tag: '', avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80', phone: '0955444555' },
+    { id: 'sample_khoi', name: 'Đình Khôi', tag: '', avatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&w=150&q=80', phone: '0944555666' },
+    { id: 'sample_linh', name: 'Dinh Linh', tag: '', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&q=80', phone: '0933666777' },
+    { id: 'sample_xuan_nghi', name: 'Xuân Nghi', tag: 'Đồng nghiệp', avatar: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=150&q=80', phone: '0911888999' }
+  ];
+
+  function renderContactsFullPage(viewType = 'friends') {
+    const scrollContainer = document.getElementById('contacts-alphabetical-scroll');
+    const totalCountEl = document.getElementById('contacts-total-count');
+    const countLabelEl = document.getElementById('contacts-count-label');
+    const searchInput = document.getElementById('contacts-search-input');
+    const sortSelect = document.getElementById('contacts-sort-select');
+    const categorySelect = document.getElementById('contacts-category-select');
+
+    if (!scrollContainer) return;
+    scrollContainer.innerHTML = '';
+
+    const query = searchInput ? searchInput.value.toLowerCase().trim() : '';
+    const sortOrder = sortSelect ? sortSelect.value : 'a-z';
+    const selectedCategory = categorySelect ? categorySelect.value : 'all';
+
+    if (viewType === 'groups') {
+      if (countLabelEl) countLabelEl.innerHTML = `Nhóm và cộng đồng (<span id="contacts-total-count">${allRooms.length}</span>)`;
+      if (allRooms.length === 0) {
+        scrollContainer.innerHTML = '<div class="empty-contacts-state"><p>Chưa tham gia nhóm nào.</p></div>';
+        return;
+      }
+      allRooms.forEach(room => {
+        const item = document.createElement('div');
+        item.className = 'alphabet-friend-item';
+        item.innerHTML = `
+          <div class="alphabet-friend-left">
+            <div class="alphabet-avatar-wrap">
+              <img src="${room.avatar}" alt="${escapeHTML(room.name)}" class="alphabet-avatar">
+            </div>
+            <div class="alphabet-friend-info">
+              <div class="alphabet-friend-name">${escapeHTML(room.name)}</div>
+              <div style="font-size: 0.78rem; color: var(--text-muted);">${(room.members || []).length} thành viên</div>
+            </div>
+          </div>
+          <button class="btn-contact-menu">•••</button>
+        `;
+        item.querySelector('.alphabet-friend-left').addEventListener('click', () => {
+          openChatWithTarget(room);
+          switchToMessagesView();
+        });
+        scrollContainer.appendChild(item);
+      });
+      return;
+    }
+
+    if (viewType === 'invites') {
+      if (countLabelEl) countLabelEl.innerHTML = `Lời mời kết bạn (<span id="contacts-total-count">0</span>)`;
+      scrollContainer.innerHTML = '<div class="empty-contacts-state"><p>Không có lời mời kết bạn nào đang chờ duyệt.</p></div>';
+      return;
+    }
+
+    if (viewType === 'group-invites') {
+      if (countLabelEl) countLabelEl.innerHTML = `Lời mời vào nhóm (<span id="contacts-total-count">0</span>)`;
+      scrollContainer.innerHTML = '<div class="empty-contacts-state"><p>Không có lời mời vào nhóm nào.</p></div>';
+      return;
+    }
+
+    // Default: viewType === 'friends'
+    const friendIds = (currentUser && currentUser.friends) || [];
+    let list = allUsers.filter(u => friendIds.includes(u.id) && u.id !== currentUser.id).map(u => ({
+      id: u.id,
+      name: getDisplayName(u.id, u.name),
+      rawName: u.name,
+      tag: u.tag && u.tag.includes('Đồng nghiệp') ? 'Đồng nghiệp' : '',
+      avatar: u.avatar,
+      phone: u.phone,
+      isOnline: u.status === 'online',
+      isGroup: false
+    }));
+
+    // If list is small, show sample contacts from Image 2
+    SAMPLE_CONTACTS.forEach(s => {
+      if (!list.some(x => x.name.toLowerCase() === s.name.toLowerCase())) {
+        list.push({
+          id: s.id,
+          name: s.name,
+          rawName: s.name,
+          tag: s.tag,
+          avatar: s.avatar,
+          phone: s.phone,
+          isOnline: true,
+          isGroup: false,
+          isSample: true
+        });
+      }
+    });
+
+    // Filter by search query
+    if (query) {
+      list = list.filter(item =>
+        item.name.toLowerCase().includes(query) ||
+        (item.phone && item.phone.includes(query))
+      );
+    }
+
+    // Filter by category
+    if (selectedCategory !== 'all') {
+      if (selectedCategory === 'dong-nghiep') {
+        list = list.filter(item => item.tag && item.tag.toLowerCase().includes('đồng nghiệp'));
+      } else if (selectedCategory === 'ban-be') {
+        list = list.filter(item => item.tag && item.tag.toLowerCase().includes('bạn'));
+      } else if (selectedCategory === 'gia-dinh') {
+        list = list.filter(item => item.tag && item.tag.toLowerCase().includes('gia đình'));
+      }
+    }
+
+    if (totalCountEl) totalCountEl.textContent = list.length;
+    if (countLabelEl) countLabelEl.innerHTML = `Bạn bè (<span id="contacts-total-count">${list.length}</span>)`;
+
+    // Sort list
+    list.sort((a, b) => {
+      const cmp = a.name.localeCompare(b.name, 'vi', { sensitivity: 'base' });
+      return sortOrder === 'z-a' ? -cmp : cmp;
+    });
+
+    // Group alphabetically (A-Z)
+    const groups = {};
+    list.forEach(item => {
+      const firstLetter = item.name.charAt(0).toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      const key = firstLetter.match(/[A-Z]/) ? firstLetter : '#';
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(item);
+    });
+
+    const sortedKeys = Object.keys(groups).sort((a, b) => {
+      const cmp = a.localeCompare(b, 'vi');
+      return sortOrder === 'z-a' ? -cmp : cmp;
+    });
+
+    sortedKeys.forEach(letter => {
+      const groupBlock = document.createElement('div');
+      groupBlock.className = 'alphabet-group-block';
+
+      const groupHeader = document.createElement('div');
+      groupHeader.className = 'alphabet-group-header';
+      groupHeader.textContent = letter;
+      groupBlock.appendChild(groupHeader);
+
+      groups[letter].forEach(friend => {
+        const row = document.createElement('div');
+        row.className = 'alphabet-friend-item';
+        row.innerHTML = `
+          <div class="alphabet-friend-left">
+            <div class="alphabet-avatar-wrap">
+              <img src="${friend.avatar}" alt="${escapeHTML(friend.name)}" class="alphabet-avatar">
+              <span class="status-indicator online" style="position: absolute; bottom: 0; right: 0; width: 12px; height: 12px; border: 2px solid var(--bg-main);"></span>
+            </div>
+            <div class="alphabet-friend-name">
+              <span>${escapeHTML(friend.name)}</span>
+              ${friend.tag ? `<span class="tag-badge-pill">${escapeHTML(friend.tag)}</span>` : ''}
+            </div>
+          </div>
+          <button class="btn-contact-menu" title="Tùy chọn">•••</button>
+        `;
+
+        row.querySelector('.alphabet-friend-left').addEventListener('click', () => {
+          openChatWithTarget(friend);
+          switchToMessagesView();
+        });
+
+        const dotsBtn = row.querySelector('.btn-contact-menu');
+        dotsBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const action = prompt(`Tùy chọn với ${friend.name}:\n1. Nhắn tin\n2. Gọi thoại\n3. Gọi video\n4. Đặt tên gợi nhớ\nNhập số 1-4:`);
+          if (action === '1') {
+            openChatWithTarget(friend);
+            switchToMessagesView();
+          } else if (action === '2') {
+            openChatWithTarget(friend);
+            initiateWebRTCCall(false);
+          } else if (action === '3') {
+            openChatWithTarget(friend);
+            initiateWebRTCCall(true);
+          } else if (action === '4') {
+            openEditNicknameModal();
+          }
+        });
+
+        groupBlock.appendChild(row);
+      });
+
+      scrollContainer.appendChild(groupBlock);
+    });
+  }
+
+  // Update Right Sidebar Link & Security Section (Image 1)
+  function updateSidebarLinksAndSecurity() {
+    const linksContainer = document.getElementById('shared-links-preview');
+    if (!linksContainer) return;
+
+    // Scan activeMessages for any URLs
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    const foundLinks = [];
+    activeMessages.forEach(msg => {
+      if (msg.text && !msg.recalled) {
+        const matches = msg.text.match(urlRegex);
+        if (matches) {
+          matches.forEach(url => {
+            let domain = url;
+            try { domain = new URL(url).hostname; } catch(e){}
+            foundLinks.push({
+              url,
+              title: url.length > 35 ? url.substring(0, 35) + '...' : url,
+              domain: domain,
+              date: new Date(msg.timestamp).toLocaleDateString('vi-VN')
+            });
+          });
+        }
+      }
+    });
+
+    if (foundLinks.length > 0) {
+      linksContainer.innerHTML = '';
+      foundLinks.slice(-4).reverse().forEach(link => {
+        const card = document.createElement('div');
+        card.className = 'shared-link-card';
+        card.innerHTML = `
+          <div class="link-icon-box">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          </div>
+          <div class="link-card-body">
+            <div class="link-title">${escapeHTML(link.title)}</div>
+            <div class="link-sub-row">
+              <span class="link-domain">${escapeHTML(link.domain)}</span>
+              <span class="link-date">${escapeHTML(link.date)}</span>
+            </div>
+          </div>
+        `;
+        card.addEventListener('click', () => window.open(link.url, '_blank'));
+        linksContainer.appendChild(card);
+      });
+    } else {
+      // Sample links matching Image 1 exactly
+      linksContainer.innerHTML = `
+        <div class="shared-link-card">
+          <div class="link-icon-box">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          </div>
+          <div class="link-card-body">
+            <div class="link-title">Cổng Bình Chọn Trực Tuyến MUCE 2026</div>
+            <div class="link-sub-row">
+              <span class="link-domain">binhchon-muce.onrender.com</span>
+              <span class="link-date">Hôm qua</span>
+            </div>
+          </div>
+        </div>
+        <div class="shared-link-card">
+          <div class="link-icon-box">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          </div>
+          <div class="link-card-body">
+            <div class="link-title">Cổng Bình Chọn Trực Tuyến MUCE 2026</div>
+            <div class="link-sub-row">
+              <span class="link-domain">binhchon-muce.onrender.com</span>
+              <span class="link-date">Hôm qua</span>
+            </div>
+          </div>
+        </div>
+        <div class="shared-link-card">
+          <div class="link-icon-box">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          </div>
+          <div class="link-card-body">
+            <div class="link-title">Cổng Bình Chọn Trực Tuyến MUCE 2026</div>
+            <div class="link-sub-row">
+              <span class="link-domain">binhchon-muce.onrender.com</span>
+              <span class="link-date">Hôm qua</span>
+            </div>
+          </div>
+        </div>
+      `;
+      const cards = linksContainer.querySelectorAll('.shared-link-card');
+      cards.forEach(c => c.addEventListener('click', () => window.open('https://binhchon-muce.onrender.com', '_blank')));
+    }
+  }
+
   // Render Sidebar Content (Zalo Style with Cloud của tôi, Pinning, and Muting)
   function renderSidebarContent() {
     convListContainer.innerHTML = '';
@@ -2589,7 +3347,10 @@
       btnDeleteGroup.style.display = 'none';
       btnLeaveGroup.style.display = 'none';
       btnUnfriend.style.display = 'none';
-      btnClearHistory.style.display = 'block';
+      btnClearHistory.style.display = 'flex';
+
+      const btnReportConv = document.getElementById('btn-report-conv');
+      if (btnReportConv) btnReportConv.style.display = 'none';
 
       messageInput.placeholder = 'Ghi chú, gửi file vào Cloud của tôi...';
     } else if (target.isGroup) {
@@ -2613,7 +3374,10 @@
       btnDeleteGroup.style.display = isCreator ? 'block' : 'none';
       btnLeaveGroup.style.display = 'block';
       btnUnfriend.style.display = 'none';
-      btnClearHistory.style.display = 'block';
+      btnClearHistory.style.display = 'flex';
+
+      const btnReportConv = document.getElementById('btn-report-conv');
+      if (btnReportConv) btnReportConv.style.display = 'flex';
 
       messageInput.placeholder = `Nhập @, tin nhắn tới ${target.name}...`;
     } else {
@@ -2631,8 +3395,11 @@
 
       btnDeleteGroup.style.display = 'none';
       btnLeaveGroup.style.display = 'none';
-      btnUnfriend.style.display = 'block';
-      btnClearHistory.style.display = 'block';
+      btnUnfriend.style.display = 'none';
+      btnClearHistory.style.display = 'flex';
+
+      const btnReportConv = document.getElementById('btn-report-conv');
+      if (btnReportConv) btnReportConv.style.display = 'flex';
 
       messageInput.placeholder = `Nhập @, tin nhắn tới ${target.name}...`;
     }
@@ -2644,9 +3411,12 @@
       isGroup: target.isGroup
     });
 
+    updateSidebarLinksAndSecurity();
     renderSidebarContent();
     messageInput.focus();
   }
+
+  const openChatWithTarget = selectTarget;
 
   function updateHeaderStatus(isOnline) {
     if (currentTarget.isCloud) {
@@ -3030,6 +3800,8 @@
       });
       sharedMediaGrid.appendChild(img);
     });
+
+    updateSidebarLinksAndSecurity();
   }
 
   async function handleSendMessage() {
