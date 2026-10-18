@@ -17,6 +17,19 @@
       "gender": "Nam",
       "dob": "28 th�ng 12, 2004",
       "cover": "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80"
+    },
+    {
+      "id": "user_1792289794570_797",
+      "name": "Xu�n Nghi",
+      "tag": "@xuannghi",
+      "username": "xuannghi",
+      "phone": "0911888999",
+      "password": "123",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=xuannghi",
+      "bio": "Chào bạn, tôi vừa tham gia ZaloChat!",
+      "friends": [],
+      "status": "offline",
+      "lastSeen": "2026-10-18T02:16:34.571Z"
     }
   ],
   "rooms": [],
