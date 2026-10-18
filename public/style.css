@@ -2466,33 +2466,179 @@ body {
 
   /* Messages Container & Bubble on Mobile */
   .messages-container {
-    padding: 12px 10px;
+    padding: 12px 10px calc(14px + env(safe-area-inset-bottom, 0px));
+  }
+  .messages-stream {
+    gap: 12px;
+  }
+  .message-row {
+    max-width: 86% !important;
+    gap: 8px !important;
+  }
+  .message-content-wrapper {
+    max-width: 100% !important;
+    min-width: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+  .message-row.incoming .message-content-wrapper {
+    align-items: flex-start !important;
+  }
+  .message-row.outgoing .message-content-wrapper {
+    align-items: flex-end !important;
   }
   .message-bubble {
-    max-width: 82% !important;
-    font-size: 0.92rem;
-    padding: 10px 14px;
+    max-width: 100% !important;
+    width: fit-content !important;
+    min-width: 44px !important;
+    font-size: 15px !important;
+    line-height: 1.45 !important;
+    padding: 10px 14px !important;
+    border-radius: 16px !important;
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+    white-space: pre-wrap !important;
+    box-sizing: border-box !important;
+  }
+  .message-row.incoming .message-bubble {
+    background: var(--bubble-incoming, #ffffff) !important;
+    color: var(--bubble-incoming-text, #111827) !important;
+    border: 1px solid var(--border-subtle, rgba(0, 0, 0, 0.06)) !important;
+    border-bottom-left-radius: 4px !important;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+  }
+  .message-row.outgoing .message-bubble {
+    background: var(--accent-primary, #0068ff) !important;
+    color: #ffffff !important;
+    border: none !important;
+    border-bottom-right-radius: 4px !important;
+    box-shadow: 0 1px 3px rgba(0, 104, 255, 0.25) !important;
   }
   .message-meta {
-    font-size: 0.68rem;
+    font-size: 11px !important;
+    color: var(--text-dim, #94a3b8) !important;
+    margin-top: 3px !important;
+  }
+  .message-row.outgoing .message-meta {
+    justify-content: flex-end !important;
+  }
+
+  /* Sub-Tabs: Uu tien | Khac on Mobile */
+  .sidebar-sub-tabs {
+    height: 40px !important;
+    padding: 0 14px !important;
+    background: var(--bg-secondary) !important;
+    border-bottom: 1px solid var(--border-subtle) !important;
+  }
+  .sub-tab-group {
+    gap: 20px !important;
+  }
+  .sub-tab {
+    background: transparent !important;
+    border: none !important;
+    padding: 0 4px !important;
+    color: var(--text-muted) !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+    white-space: nowrap !important;
+    box-shadow: none !important;
+  }
+  .sub-tab.active {
+    color: var(--zalo-blue) !important;
+    font-weight: 700 !important;
+  }
+  .sub-tab.active::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 2.5px;
+    background: var(--zalo-blue);
+    border-radius: 2px 2px 0 0;
   }
 
   /* Chat Input Toolbar on Mobile */
   .chat-input-wrapper {
-    padding: 8px 10px calc(8px + env(safe-area-inset-bottom, 0px));
+    padding: 0 !important;
+    background: var(--bg-secondary) !important;
+    border-top: 1px solid var(--border-subtle) !important;
   }
-  .chat-input-toolbar {
-    gap: 6px;
+  .zalo-chat-toolbar {
+    height: 38px !important;
+    padding: 0 8px !important;
+    gap: 6px !important;
+    background: var(--bg-secondary) !important;
+    border-top: 1px solid var(--border-subtle) !important;
+    overflow-x: auto !important;
+    white-space: nowrap !important;
+    scrollbar-width: none !important;
   }
-  .tool-btn, .send-btn {
-    width: 38px;
-    height: 38px;
-    flex-shrink: 0;
+  .zalo-chat-toolbar::-webkit-scrollbar {
+    display: none !important;
+  }
+  /* Hide unnecessary desktop tools on mobile */
+  #btn-screenshot-tool,
+  #btn-format-text,
+  #btn-namecard,
+  #btn-reminder {
+    display: none !important;
+  }
+  .zalo-chat-toolbar .tool-btn {
+    width: 32px !important;
+    height: 32px !important;
+    flex-shrink: 0 !important;
+    color: var(--text-muted) !important;
+  }
+
+  .zalo-chat-input-row {
+    padding: 6px 10px calc(8px + env(safe-area-inset-bottom, 0px)) !important;
+    background: var(--bg-secondary) !important;
+    gap: 8px !important;
+    min-height: 50px !important;
+    align-items: center !important;
+  }
+  .input-field-container {
+    background: var(--bg-tertiary, #f1f5f9) !important;
+    border-radius: 22px !important;
+    padding: 6px 14px !important;
+    border: 1px solid var(--border-subtle, #e2e8f0) !important;
+    display: flex !important;
+    align-items: center !important;
+    flex: 1 !important;
   }
   .input-field-container textarea {
-    font-size: 16px !important; /* CRITICAL: Prevent iOS Safari Auto-Zoom */
-    padding: 9px 12px;
-    max-height: 100px;
+    font-size: 15px !important;
+    line-height: 1.4 !important;
+    padding: 2px 0 !important;
+    max-height: 90px !important;
+    background: transparent !important;
+    color: var(--text-main) !important;
+    font-family: inherit !important;
+  }
+  .input-right-actions {
+    gap: 4px !important;
+    flex-shrink: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+  }
+  .input-right-actions .tool-btn,
+  .input-right-actions .send-btn {
+    width: 36px !important;
+    height: 36px !important;
+    border-radius: 50% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    flex-shrink: 0 !important;
+  }
+  .send-btn {
+    background: var(--zalo-blue, #0068ff) !important;
+    color: #ffffff !important;
+    border: none !important;
+  }
+  .send-btn svg {
+    stroke: #ffffff !important;
   }
 
   /* Forms and Modals on Mobile: Full responsiveness */
@@ -4284,34 +4430,121 @@ body {
   line-height: 1.5;
 }
 
-/* Mobile Polish */
+/* Mobile Polish & Dark Theme Consistency */
 @media (max-width: 768px) {
   .zalo-window-header {
-    display: none; /* Hide PC desktop title bar on mobile screens */
+    display: none !important; /* Hide PC desktop title bar on mobile screens */
   }
   .app-layout {
     height: 100vh;
     height: 100dvh;
+    width: 100vw;
   }
   .chat-header {
-    background: var(--bg-secondary);
-    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-secondary) !important;
+    border-bottom: 1px solid var(--border-color) !important;
+    height: 56px !important;
+    padding: 0 10px !important;
+  }
+  .chat-header-actions #btn-search-chat {
+    display: none !important;
+  }
+  .chat-header-info {
+    min-width: 0 !important;
+  }
+  .target-name {
+    max-width: calc(100vw - 210px) !important;
+    font-size: 15px !important;
+    font-weight: 700 !important;
+  }
+  .target-status {
+    font-size: 11px !important;
   }
   .chat-main {
     height: 100%;
+    background: var(--bg-primary);
   }
   .messages-container {
-    padding-bottom: 8px;
+    padding-bottom: 12px;
   }
   .chat-input-wrapper {
-    background: var(--bg-secondary);
-    border-top: 1px solid var(--border-color);
+    background: var(--bg-secondary) !important;
+    border-top: 1px solid var(--border-color) !important;
   }
   .mobile-bottom-nav {
-    height: 56px;
-    background: var(--bg-secondary);
-    border-top: 1px solid var(--border-color);
+    height: calc(56px + env(safe-area-inset-bottom, 0px)) !important;
+    padding-bottom: env(safe-area-inset-bottom, 4px) !important;
+    background: var(--bg-secondary) !important;
+    border-top: 1px solid var(--border-color) !important;
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.04);
   }
+}
+
+/* Comprehensive Dark Mode Rules for Chat & Input */
+[data-theme="dark"] .sidebar-sub-tabs {
+  background: #1f2937 !important;
+  border-bottom-color: #374151 !important;
+}
+[data-theme="dark"] .sub-tab {
+  color: #9ca3af !important;
+}
+[data-theme="dark"] .sub-tab.active {
+  color: #3b82f6 !important;
+}
+[data-theme="dark"] .sub-tab.active::after {
+  background: #3b82f6 !important;
+}
+[data-theme="dark"] .chat-header {
+  background: #1f2937 !important;
+  border-bottom-color: #374151 !important;
+}
+[data-theme="dark"] .chat-main {
+  background: #111827 !important;
+}
+[data-theme="dark"] .message-row.incoming .message-bubble {
+  background: #242b35 !important;
+  color: #f3f4f6 !important;
+  border-color: #374151 !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2) !important;
+}
+[data-theme="dark"] .message-row.outgoing .message-bubble {
+  background: #0068ff !important;
+  color: #ffffff !important;
+}
+[data-theme="dark"] .chat-input-wrapper {
+  background: #1f2937 !important;
+  border-top-color: #374151 !important;
+}
+[data-theme="dark"] .zalo-chat-toolbar {
+  background: #1f2937 !important;
+  border-top-color: #374151 !important;
+}
+[data-theme="dark"] .zalo-chat-toolbar .tool-btn {
+  color: #9ca3af !important;
+}
+[data-theme="dark"] .zalo-chat-toolbar .tool-btn:hover {
+  background: #374151 !important;
+  color: #f3f4f6 !important;
+}
+[data-theme="dark"] .zalo-chat-input-row {
+  background: #1f2937 !important;
+}
+[data-theme="dark"] .input-field-container {
+  background: #111827 !important;
+  border-color: #374151 !important;
+}
+[data-theme="dark"] .input-field-container textarea {
+  color: #f3f4f6 !important;
+}
+[data-theme="dark"] .mobile-bottom-nav {
+  background: #1f2937 !important;
+  border-top-color: #374151 !important;
+}
+[data-theme="dark"] .mobile-nav-btn {
+  color: #9ca3af !important;
+}
+[data-theme="dark"] .mobile-nav-btn.active {
+  color: #3b82f6 !important;
 }
 
 

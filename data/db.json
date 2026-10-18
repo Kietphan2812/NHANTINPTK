@@ -9,7 +9,9 @@
       "password": "kiet12345",
       "avatar": "https://res.cloudinary.com/qfgja134/image/upload/v1792309112/nhantin/chat_uploads/1792309111885-727576648_edeole.jpg",
       "bio": "Chào bạn, tôi vừa tham gia ZaloChat!",
-      "friends": [],
+      "friends": [
+        "user_1792315002535_764"
+      ],
       "status": "offline",
       "last_seen": "2026-10-18T08:15:01.328Z",
       "settings": {},
@@ -33,6 +35,42 @@
       "gender": "Nữ",
       "dob": "15 tháng 06, 2005",
       "cover": "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80"
+    },
+    {
+      "id": "user_1792315002535_764",
+      "name": "ptk",
+      "tag": "@ptk",
+      "username": "ptk",
+      "phone": "0338351411",
+      "password": "kiet12345",
+      "avatar": "https://res.cloudinary.com/qfgja134/image/upload/v1792315015/nhantin/chat_uploads/1792315015390-502703166_s494bp.jpg",
+      "bio": "Chào bạn, tôi vừa tham gia ZaloChat!",
+      "friends": [
+        "user_1792224901328_512"
+      ],
+      "status": "offline",
+      "last_seen": "2026-10-18T09:16:42.535Z",
+      "gender": "Nam",
+      "dob": "28 tháng 12, 2004",
+      "cover": "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80",
+      "settings": {}
+    },
+    {
+      "id": "user_1792315280211_72",
+      "name": "Nguyễn Thế Nhất",
+      "tag": "@nhatpro0",
+      "username": "nhatpro0",
+      "phone": "0326348495",
+      "password": "nhatpro0",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=nhatpro0",
+      "bio": "Chào bạn, tôi vừa tham gia ZaloChat!",
+      "friends": [],
+      "status": "offline",
+      "last_seen": "2026-10-18T09:21:20.211Z",
+      "gender": "Nam",
+      "dob": "28 tháng 12, 2004",
+      "cover": "",
+      "settings": {}
     }
   ],
   "rooms": [],
