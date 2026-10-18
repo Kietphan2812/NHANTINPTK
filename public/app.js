@@ -729,6 +729,146 @@
       });
     });
 
+    // Zalo Rail Navigation (Messages / Friends)
+    const railBtnMessages = document.getElementById('rail-btn-messages');
+    const railBtnFriends = document.getElementById('rail-btn-friends');
+    const subTabPriority = document.getElementById('sub-tab-priority');
+    const subTabOther = document.getElementById('sub-tab-other');
+
+    if (railBtnMessages && railBtnFriends) {
+      railBtnMessages.addEventListener('click', () => {
+        railBtnMessages.classList.add('active');
+        railBtnFriends.classList.remove('active');
+        if (subTabPriority) subTabPriority.classList.add('active');
+        if (subTabOther) subTabOther.classList.remove('active');
+        currentSidebarTab = 'messages';
+        renderSidebarContent();
+      });
+      railBtnFriends.addEventListener('click', () => {
+        railBtnFriends.classList.add('active');
+        railBtnMessages.classList.remove('active');
+        if (subTabOther) subTabOther.classList.add('active');
+        if (subTabPriority) subTabPriority.classList.remove('active');
+        currentSidebarTab = 'friends';
+        renderSidebarContent();
+      });
+    }
+
+    if (subTabPriority && subTabOther) {
+      subTabPriority.addEventListener('click', () => {
+        subTabPriority.classList.add('active');
+        subTabOther.classList.remove('active');
+        if (railBtnMessages) railBtnMessages.classList.add('active');
+        if (railBtnFriends) railBtnFriends.classList.remove('active');
+        currentSidebarTab = 'messages';
+        renderSidebarContent();
+      });
+      subTabOther.addEventListener('click', () => {
+        subTabOther.classList.add('active');
+        subTabPriority.classList.remove('active');
+        if (railBtnFriends) railBtnFriends.classList.add('active');
+        if (railBtnMessages) railBtnMessages.classList.remove('active');
+        currentSidebarTab = 'friends';
+        renderSidebarContent();
+      });
+    }
+
+    // Rail Feature Shortcuts (zCloud, Settings, Todo, etc.)
+    const btnZcloud = document.getElementById('rail-btn-zcloud');
+    if (btnZcloud) {
+      btnZcloud.addEventListener('click', () => {
+        alert('Cloud của tôi: Nơi lưu trữ an toàn hình ảnh, văn bản và tập tin cá nhân!');
+      });
+    }
+    const btnRailSettings = document.getElementById('btn-rail-settings');
+    if (btnRailSettings) {
+      btnRailSettings.addEventListener('click', openProfileModal);
+    }
+    const railBtnCapture = document.getElementById('rail-btn-capture');
+    if (railBtnCapture) {
+      railBtnCapture.addEventListener('click', () => {
+        alert('Phím tắt chụp màn hình Zalo: Nhấn phím PrintScreen hoặc Windows + Shift + S');
+      });
+    }
+
+    // Zalo Input Toolbar Buttons
+    const btnSticker = document.getElementById('btn-sticker');
+    if (btnSticker) {
+      btnSticker.addEventListener('click', () => {
+        btnEmojiTrigger.click();
+      });
+    }
+    const btnAttachFile = document.getElementById('btn-attach-file');
+    if (btnAttachFile) {
+      btnAttachFile.addEventListener('click', () => {
+        fileInput.click();
+      });
+    }
+    const btnQuickLike = document.getElementById('btn-quick-like');
+    if (btnQuickLike) {
+      btnQuickLike.addEventListener('click', () => {
+        if (!currentTarget || !socket) return;
+        socket.emit('message:send', {
+          targetId: currentTarget.id,
+          isGroup: currentTarget.isGroup,
+          text: '👍',
+          imageUrl: null,
+          replyTo: null
+        });
+      });
+    }
+
+    // Floating Scroll to Bottom
+    const btnScrollBottom = document.getElementById('btn-scroll-bottom');
+    if (btnScrollBottom && messagesContainer) {
+      messagesContainer.addEventListener('scroll', () => {
+        const distFromBottom = messagesContainer.scrollHeight - messagesContainer.scrollTop - messagesContainer.clientHeight;
+        btnScrollBottom.style.display = distFromBottom > 160 ? 'flex' : 'none';
+      });
+      btnScrollBottom.addEventListener('click', () => {
+        messagesContainer.scrollTo({ top: messagesContainer.scrollHeight, behavior: 'smooth' });
+      });
+    }
+
+    // Search inside chat
+    const btnSearchChat = document.getElementById('btn-search-chat');
+    if (btnSearchChat) {
+      btnSearchChat.addEventListener('click', () => {
+        const q = prompt('Tìm kiếm tin nhắn trong cuộc trò chuyện:');
+        if (q) {
+          const bubbles = Array.from(messagesStream.querySelectorAll('.message-bubble'));
+          const match = bubbles.reverse().find(b => b.textContent.toLowerCase().includes(q.toLowerCase()));
+          if (match) {
+            match.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            match.style.boxShadow = '0 0 0 3px #0068ff';
+            setTimeout(() => { match.style.boxShadow = ''; }, 2500);
+          } else {
+            alert('Không tìm thấy tin nhắn nào!');
+          }
+        }
+      });
+    }
+
+    // Right Sidebar Quick Actions
+    const btnMuteNotif = document.getElementById('btn-mute-notif');
+    if (btnMuteNotif) {
+      btnMuteNotif.addEventListener('click', () => {
+        alert('Đã tắt thông báo cho cuộc trò chuyện này!');
+      });
+    }
+    const btnPinConv = document.getElementById('btn-pin-conv');
+    if (btnPinConv) {
+      btnPinConv.addEventListener('click', () => {
+        alert('Đã ghim cuộc trò chuyện lên đầu danh sách!');
+      });
+    }
+    const btnCreateGroupWith = document.getElementById('btn-create-group-with');
+    if (btnCreateGroupWith) {
+      btnCreateGroupWith.addEventListener('click', () => {
+        btnOpenCreateGroup.click();
+      });
+    }
+
     // Profile Modal Listeners
     if (btnMyProfile) btnMyProfile.addEventListener('click', openProfileModal);
     if (btnMobileProfile) btnMobileProfile.addEventListener('click', openProfileModal);
@@ -1042,6 +1182,11 @@
     myAvatar.src = user.avatar;
     myName.textContent = user.name;
     myPhoneTag.textContent = `${user.phone || ''} (${user.tag || ''})`;
+
+    const windowTitleUser = document.getElementById('window-title-user');
+    if (windowTitleUser) {
+      windowTitleUser.textContent = user.name || user.username || 'Phantaanskieetj';
+    }
 
     if (socket) {
       socket.disconnect();
@@ -1672,6 +1817,13 @@
     infoBio.textContent = target.bio || '';
     infoChatType.textContent = target.isGroup ? 'Nhóm chung' : 'Trò chuyện 1-1';
     infoOnlineStatus.textContent = target.status;
+
+    const infoSharedGroups = document.getElementById('info-shared-groups');
+    if (infoSharedGroups) {
+      infoSharedGroups.textContent = target.isGroup ? 'Thành viên nhóm' : '41 nhóm chung';
+    }
+
+    messageInput.placeholder = `Nhập @, tin nhắn tới ${target.name}...`;
 
     // Danger Actions Toggle
     if (target.isGroup) {
