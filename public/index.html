@@ -72,10 +72,10 @@
       <!-- Navigation & Filter Tabs -->
       <div class="sidebar-nav-tabs">
         <button class="nav-tab active" data-tab="messages">
-          💬 Tin nhắn
+          Tin nhắn
         </button>
         <button class="nav-tab" data-tab="friends">
-          👥 Bạn bè
+          Danh bạ
         </button>
       </div>
 
@@ -135,7 +135,7 @@
       <!-- Pinned Message Banner -->
       <div class="pinned-message-banner" id="pinned-banner" style="display: none;">
         <div class="pinned-left">
-          <span class="pinned-icon">📌</span>
+          <svg class="pinned-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 17v5M9 2h6l-1 7h3l-5 8-5-8h3z"/></svg>
           <div class="pinned-text-group">
             <span class="pinned-title">Tin nhắn đã ghim</span>
             <span class="pinned-snippet" id="pinned-snippet">...</span>
@@ -195,8 +195,8 @@
             </div>
           </div>
           <div class="recording-actions">
-            <button type="button" id="btn-cancel-voice" class="btn-voice-cancel" title="Hủy bỏ">✕ Hủy</button>
-            <button type="button" id="btn-send-voice" class="btn-voice-send" title="Gửi tin nhắn thoại">Gửi ✈️</button>
+            <button type="button" id="btn-cancel-voice" class="btn-voice-cancel" title="Hủy bỏ">Hủy</button>
+            <button type="button" id="btn-send-voice" class="btn-voice-send" title="Gửi tin nhắn thoại">Gửi</button>
           </div>
         </div>
 
@@ -269,8 +269,8 @@
 
         <!-- Danger Actions: Xóa bạn bè hoặc Xóa nhóm -->
         <div class="conversation-danger-actions">
-          <button id="btn-unfriend" class="danger-btn w-100" style="display: none;">🗑️ Xóa Bạn Bè (Hủy Kết Bạn)</button>
-          <button id="btn-delete-group" class="danger-btn w-100" style="display: none;">🗑️ Xóa Nhóm Trò Chuyện</button>
+          <button id="btn-unfriend" class="danger-btn w-100" style="display: none;">Xóa Bạn Bè (Hủy Kết Bạn)</button>
+          <button id="btn-delete-group" class="danger-btn w-100" style="display: none;">Xóa Nhóm Trò Chuyện</button>
         </div>
 
         <div class="shared-media-section">
@@ -288,7 +288,7 @@
   <div class="modal-overlay" id="create-group-modal" style="display: none;">
     <div class="modal-card">
       <div class="modal-header-row">
-        <h3>👥 Tạo Nhóm Trò Chuyện Mới</h3>
+        <h3>Tạo Nhóm Trò Chuyện Mới</h3>
         <button class="icon-btn" id="btn-close-create-group">✕</button>
       </div>
       <form id="create-group-form" class="create-group-form">
@@ -311,14 +311,14 @@
   <div class="modal-overlay" id="add-friend-modal" style="display: none;">
     <div class="modal-card">
       <div class="modal-header-row">
-        <h3>🔍 Tìm Bạn & Kết Bạn</h3>
+        <h3>Tìm kiếm bạn bè</h3>
         <button class="icon-btn" id="btn-close-add-friend">✕</button>
       </div>
-      <p class="modal-desc">Nhập Số điện thoại (vd: 0909999888) hoặc Tên đăng nhập để tìm và kết bạn trò chuyện:</p>
+      <p class="modal-desc">Nhập Số điện thoại hoặc Tên đăng nhập để kết nối trò chuyện:</p>
 
       <form id="search-friend-form" class="search-friend-form">
         <div class="search-input-group">
-          <input type="text" id="search-friend-query" placeholder="Nhập số điện thoại hoặc @tên..." required>
+          <input type="text" id="search-friend-query" placeholder="Nhập số điện thoại hoặc tên đăng nhập..." required>
           <button type="submit" class="primary-btn">Tìm Kiếm</button>
         </div>
       </form>
@@ -333,7 +333,17 @@
   <div class="modal-overlay" id="user-select-modal" style="display: none;">
     <div class="modal-card auth-card">
       <div class="modal-brand">
-        <div class="brand-icon">💬</div>
+        <div class="brand-icon">
+          <svg viewBox="0 0 24 24" width="46" height="46" fill="none" stroke="url(#brand-grad)" stroke-width="2">
+            <defs>
+              <linearGradient id="brand-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#3b82f6"/>
+                <stop offset="100%" stop-color="#8b5cf6"/>
+              </linearGradient>
+            </defs>
+            <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+          </svg>
+        </div>
         <h2>ZaloChat</h2>
         <p>Kết nối và trò chuyện thời gian thực siêu tốc</p>
       </div>
@@ -351,13 +361,15 @@
       <form id="auth-login-form" class="auth-form-panel">
         <div class="form-group">
           <label for="login-account">Số điện thoại hoặc Tên đăng nhập</label>
-          <input type="text" id="login-account" placeholder="Vd: 0901234567 hoặc kietphan" required>
+          <input type="text" id="login-account" placeholder="Nhập số điện thoại hoặc tên đăng nhập..." required>
         </div>
         <div class="form-group">
           <label for="login-password">Mật khẩu</label>
           <div class="input-password-wrapper">
             <input type="password" id="login-password" placeholder="Nhập mật khẩu..." required>
-            <button type="button" class="btn-toggle-password" data-target="login-password" title="Hiện/ẩn mật khẩu">👁️</button>
+            <button type="button" class="btn-toggle-password" data-target="login-password" title="Hiện/ẩn mật khẩu">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
           </div>
         </div>
         <button type="submit" class="primary-btn w-100">Đăng Nhập</button>
@@ -367,24 +379,26 @@
       <form id="auth-register-form" class="auth-form-panel" style="display: none;">
         <div class="form-group">
           <label for="reg-name">Họ và tên của bạn</label>
-          <input type="text" id="reg-name" placeholder="Vd: Kiệt Phan" required maxlength="35">
+          <input type="text" id="reg-name" placeholder="Họ và tên..." required maxlength="35">
         </div>
         <div class="form-group">
-          <label for="reg-phone">Số điện thoại (dùng để tìm kiếm kết bạn)</label>
-          <input type="tel" id="reg-phone" placeholder="Vd: 0901234567" required pattern="[0-9]{9,11}">
+          <label for="reg-phone">Số điện thoại</label>
+          <input type="tel" id="reg-phone" placeholder="Số điện thoại..." required pattern="[0-9]{9,11}">
         </div>
         <div class="form-group">
-          <label for="reg-username">Tên đăng nhập (viết liền không dấu)</label>
-          <input type="text" id="reg-username" placeholder="Vd: kietphan" required maxlength="25">
+          <label for="reg-username">Tên đăng nhập</label>
+          <input type="text" id="reg-username" placeholder="Tên đăng nhập..." required maxlength="25">
         </div>
         <div class="form-group">
           <label for="reg-password">Mật khẩu</label>
           <div class="input-password-wrapper">
             <input type="password" id="reg-password" placeholder="Tối thiểu 3 ký tự" required minlength="3">
-            <button type="button" class="btn-toggle-password" data-target="reg-password" title="Hiện/ẩn mật khẩu">👁️</button>
+            <button type="button" class="btn-toggle-password" data-target="reg-password" title="Hiện/ẩn mật khẩu">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
           </div>
         </div>
-        <button type="submit" class="primary-btn w-100">Đăng Ký & Vào Chat Ngay</button>
+        <button type="submit" class="primary-btn w-100">Đăng Ký Tài Khoản</button>
       </form>
     </div>
   </div>
@@ -398,7 +412,7 @@
       </div>
       <div class="profile-edit-avatar-box">
         <img id="profile-modal-avatar" src="" alt="Avatar" class="profile-big-avatar">
-        <button type="button" id="btn-change-avatar" class="change-avatar-btn">Đổi Avatar ngẫu nhiên 🎲</button>
+        <button type="button" id="btn-change-avatar" class="change-avatar-btn">Đổi ảnh đại diện ngẫu nhiên</button>
       </div>
       <form id="profile-edit-form" class="auth-form-panel">
         <div class="form-group">
@@ -415,7 +429,7 @@
         </div>
         <div class="form-group">
           <label for="profile-input-bio">Tiểu sử / Giới thiệu</label>
-          <input type="text" id="profile-input-bio" placeholder="Vd: Đang bận, vui lòng để lại lời nhắn..." maxlength="100">
+          <input type="text" id="profile-input-bio" placeholder="Giới thiệu bản thân..." maxlength="100">
         </div>
         <div class="profile-form-buttons">
           <button type="submit" class="primary-btn w-100">Lưu Thông Tin</button>
@@ -451,8 +465,12 @@
       <div id="call-timer-label" class="call-timer" style="display: none;">00:00</div>
 
       <div class="call-actions">
-        <button id="btn-toggle-mic" class="call-ctrl-btn" title="Bật / Tắt Mic">🎤</button>
-        <button id="btn-toggle-cam" class="call-ctrl-btn" title="Bật / Tắt Camera">📹</button>
+        <button id="btn-toggle-mic" class="call-ctrl-btn" title="Bật / Tắt Mic">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+        </button>
+        <button id="btn-toggle-cam" class="call-ctrl-btn" title="Bật / Tắt Camera">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+        </button>
         <button id="btn-hangup-call" class="hangup-btn" title="Kết thúc cuộc gọi">
           <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/></svg>
         </button>

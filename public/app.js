@@ -705,7 +705,9 @@
         if (targetInput) {
           const isPwd = targetInput.type === 'password';
           targetInput.type = isPwd ? 'text' : 'password';
-          btn.textContent = isPwd ? '🙈' : '👁️';
+          btn.innerHTML = isPwd
+            ? '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>'
+            : '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
         }
       });
     });
@@ -972,9 +974,9 @@
 
       let actionBtnHtml = '';
       if (u.isFriend) {
-        actionBtnHtml = `<button class="btn-card-action chat-btn" data-action="chat">💬 Nhắn tin</button>`;
+        actionBtnHtml = `<button class="btn-card-action chat-btn" data-action="chat">Nhắn tin</button>`;
       } else {
-        actionBtnHtml = `<button class="btn-card-action add-btn" data-action="add">+ Kết bạn</button>`;
+        actionBtnHtml = `<button class="btn-card-action add-btn" data-action="add">Kết bạn</button>`;
       }
 
       card.innerHTML = `
@@ -982,7 +984,7 @@
           <img src="${u.avatar}" alt="${u.name}">
           <div class="search-user-info">
             <span class="search-user-name">${escapeHTML(u.name)}</span>
-            <span class="search-user-phone">📞 ${escapeHTML(u.phone || '')}</span>
+            <span class="search-user-phone">${escapeHTML(u.phone || '')}</span>
             <span class="search-user-tag">${escapeHTML(u.tag || '')}</span>
           </div>
         </div>
@@ -1009,7 +1011,7 @@
             });
           } else if (action === 'add') {
             socket.emit('friend:add_direct', { targetUserId: u.id });
-            btnAction.textContent = '✓ Đang kết nối...';
+            btnAction.textContent = 'Đang kết nối...';
             btnAction.className = 'btn-card-action disabled-btn';
             btnAction.disabled = true;
 
@@ -1039,7 +1041,7 @@
     currentUser = user;
     myAvatar.src = user.avatar;
     myName.textContent = user.name;
-    myPhoneTag.textContent = `📞 ${user.phone || ''} (${user.tag || ''})`;
+    myPhoneTag.textContent = `${user.phone || ''} (${user.tag || ''})`;
 
     if (socket) {
       socket.disconnect();
@@ -1266,7 +1268,7 @@
       incomingCallData = { caller, isVideo, offer };
       incomingCallAvatar.src = caller.avatar;
       incomingCallName.textContent = caller.name;
-      incomingCallType.textContent = isVideo ? '📹 Cuộc gọi video đến...' : '📞 Cuộc gọi thoại đến...';
+      incomingCallType.textContent = isVideo ? 'Cuộc gọi video đến...' : 'Cuộc gọi thoại đến...';
       incomingCallModal.style.display = 'flex';
 
       playRingTone();
@@ -1532,7 +1534,7 @@
         convListContainer.innerHTML = `
           <div class="empty-contacts-state">
             <p>Chưa có cuộc trò chuyện nào.</p>
-            <button class="primary-btn" id="btn-add-friend-empty">+ Tìm Bạn Bằng Số Điện Thoại</button>
+            <button class="primary-btn" id="btn-add-friend-empty">Tìm bạn bằng số điện thoại</button>
           </div>
         `;
         const btnEmpty = document.getElementById('btn-add-friend-empty');
@@ -1555,7 +1557,7 @@
           u.name,
           u.avatar,
           false,
-          last ? last.text : `📞 ${u.phone || ''}`,
+          last ? last.text : (u.phone || 'Trò chuyện'),
           last ? formatTimestamp(last.timestamp) : (isOnline ? 'Online' : 'Vừa xong'),
           isOnline,
           u.phone,
@@ -1573,7 +1575,7 @@
         convListContainer.innerHTML = `
           <div class="empty-contacts-state">
             <p>Bạn chưa có bạn bè nào trong danh bạ.</p>
-            <button class="primary-btn" id="btn-add-friend-empty">+ Tìm Bạn Bằng Số Điện Thoại</button>
+            <button class="primary-btn" id="btn-add-friend-empty">Tìm bạn bằng số điện thoại</button>
           </div>
         `;
         const btnEmpty = document.getElementById('btn-add-friend-empty');
@@ -1595,7 +1597,7 @@
           u.name,
           u.avatar,
           false,
-          `📞 ${u.phone || ''} • ${u.tag || ''}`,
+          `${u.phone || ''}${u.tag ? ' • ' + u.tag : ''}`,
           isOnline ? 'Online' : 'Vừa xong',
           isOnline,
           u.phone,
@@ -1666,7 +1668,7 @@
     // Sidebar Right
     infoAvatar.src = target.avatar;
     infoName.textContent = target.name;
-    infoPhone.textContent = target.phone ? `📞 ${target.phone}` : '';
+    infoPhone.textContent = target.phone ? `Số điện thoại: ${target.phone}` : '';
     infoBio.textContent = target.bio || '';
     infoChatType.textContent = target.isGroup ? 'Nhóm chung' : 'Trò chuyện 1-1';
     infoOnlineStatus.textContent = target.status;
@@ -1750,7 +1752,9 @@
       if (isAudio) {
         mediaHtml += `
           <div class="audio-message-bubble" data-audio-src="${msg.fileUrl}">
-            <button type="button" class="audio-play-btn" title="Phát tin nhắn thoại">▶️</button>
+            <button type="button" class="audio-play-btn" title="Phát tin nhắn thoại">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            </button>
             <div class="audio-meta">
               <div class="audio-progress-bar">
                 <div class="audio-progress-fill"></div>
@@ -1763,7 +1767,9 @@
       } else {
         mediaHtml += `
           <a href="${msg.fileUrl}" target="_blank" download class="file-attachment-bubble">
-            <span class="file-icon">📄</span>
+            <span class="file-icon">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            </span>
             <div class="file-info">
               <span class="file-name">${escapeHTML(msg.fileName || 'Tài liệu đính kèm')}</span>
               <span class="file-action">Nhấn để tải về</span>
@@ -1782,11 +1788,19 @@
       <button class="action-bar-btn" data-reaction="😮" title="Wow">😮</button>
       <button class="action-bar-btn" data-reaction="😢" title="Buồn">😢</button>
       <button class="action-bar-btn" data-reaction="🔥" title="Tuyệt vời">🔥</button>
-      <button class="action-bar-btn btn-pin-msg" title="Ghim tin nhắn">📌</button>
-      <button class="action-bar-btn btn-reply-msg" title="Trả lời">↩️</button>
+      <button class="action-bar-btn btn-pin-msg" title="Ghim tin nhắn">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 17v5M9 2h6l-1 7h3l-5 8-5-8h3z"/></svg>
+      </button>
+      <button class="action-bar-btn btn-reply-msg" title="Trả lời">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
+      </button>
     `;
     if (isOutgoing && !msg.recalled) {
-      actionButtonsHtml += `<button class="action-bar-btn btn-recall-msg" title="Thu hồi tin nhắn">🗑️</button>`;
+      actionButtonsHtml += `
+        <button class="action-bar-btn btn-recall-msg" title="Thu hồi tin nhắn">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        </button>
+      `;
     }
 
     row.innerHTML = `
@@ -1800,7 +1814,7 @@
         </div>
         <div class="message-meta">
           <span>${timeFormatted}</span>
-          ${isOutgoing ? `<span class="check-icon" title="Đã gửi">✓✓</span>` : ''}
+          ${isOutgoing ? `<span class="check-icon" title="Đã gửi"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 6 9 17 4 12"/><polyline points="22 10 13 21 11 19"/></svg></span>` : ''}
         </div>
         <div class="message-reactions" id="reactions-${msg.id}">
         </div>
@@ -1837,19 +1851,21 @@
 
       playBtn.addEventListener('click', (e) => {
         e.stopPropagation();
+        const playSvg = '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>';
+        const pauseSvg = '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>';
         if (audioEl.paused) {
           document.querySelectorAll('audio').forEach(a => {
             if (a !== audioEl) {
               a.pause();
               const p = a.parentElement.querySelector('.audio-play-btn');
-              if (p) p.textContent = '▶️';
+              if (p) p.innerHTML = playSvg;
             }
           });
           audioEl.play();
-          playBtn.textContent = '⏸️';
+          playBtn.innerHTML = pauseSvg;
         } else {
           audioEl.pause();
-          playBtn.textContent = '▶️';
+          playBtn.innerHTML = playSvg;
         }
       });
 
@@ -1867,7 +1883,7 @@
       });
 
       audioEl.addEventListener('ended', () => {
-        playBtn.textContent = '▶️';
+        playBtn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>';
         progressFill.style.width = '0%';
       });
 
