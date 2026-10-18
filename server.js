@@ -6,6 +6,19 @@ const fs = require('fs');
 const multer = require('multer');
 const cors = require('cors');
 
+if (process.loadEnvFile) {
+  try { process.loadEnvFile(); } catch (e) {}
+}
+
+// Cloudinary Cloud Storage Integration
+const cloudinary = require('cloudinary').v2;
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'qfgja134',
+  api_key: process.env.CLOUDINARY_API_KEY || '883671741882845',
+  api_secret: process.env.CLOUDINARY_API_SECRET || 'WR2xJMwT27mWJjfIjwoAqMbuF8M'
+});
+console.log('☁️ Cloudinary cloud storage configured (cloud_name: qfgja134)');
+
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -477,17 +490,44 @@ function isUserOnline(userId) {
 // REST API ENDPOINTS
 // ===================================================================
 
-app.post('/api/upload', upload.single('file'), (req, res) => {
+app.post('/api/upload', upload.single('file'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'Không có tệp nào được tải lên' });
   }
-  const fileUrl = `/uploads/${req.file.filename}`;
-  res.json({
-    url: fileUrl,
-    filename: req.file.originalname,
-    mimetype: req.file.mimetype,
-    size: req.file.size
-  });
+
+  try {
+    const mimetype = req.file.mimetype || '';
+    const isImage = mimetype.startsWith('image/');
+    const isVideo = mimetype.startsWith('video/');
+    const isAudio = mimetype.startsWith('audio/') || req.file.originalname.endsWith('.webm') || req.file.originalname.endsWith('.mp3') || req.file.originalname.endsWith('.wav');
+    const resourceType = isVideo ? 'video' : (isAudio ? 'video' : (isImage ? 'image' : 'raw'));
+
+    const uploadResult = await cloudinary.uploader.upload(req.file.path, {
+      folder: 'nhantin/chat_uploads',
+      resource_type: resourceType,
+      use_filename: true,
+      unique_filename: true
+    });
+
+    // Remove local file to avoid cluttering local disk
+    try { fs.unlinkSync(req.file.path); } catch (e) {}
+
+    res.json({
+      url: uploadResult.secure_url,
+      filename: req.file.originalname,
+      mimetype: req.file.mimetype,
+      size: req.file.size
+    });
+  } catch (err) {
+    console.error('⚠️ Cloudinary upload warning, fallback to local:', err.message);
+    const fileUrl = `/uploads/${req.file.filename}`;
+    res.json({
+      url: fileUrl,
+      filename: req.file.originalname,
+      mimetype: req.file.mimetype,
+      size: req.file.size
+    });
+  }
 });
 
 app.get('/api/bootstrap', (req, res) => {
@@ -603,7 +643,7 @@ app.get('/api/users/search', (req, res) => {
 });
 
 // Update user profile (Name, Bio, Avatar, Gender, Dob, Cover, Phone)
-app.post('/api/users/profile', (req, res) => {
+app.post('/api/users/profile', async (req, res) => {
   const { id, name, bio, avatar, gender, dob, cover, phone } = req.body;
   if (!id || !name) {
     return res.status(400).json({ error: 'Thiếu thông tin người dùng' });
@@ -614,10 +654,29 @@ app.post('/api/users/profile', (req, res) => {
   }
   const newName = name.trim();
   const newBio = bio !== undefined ? bio.trim() : (user.bio || '');
-  const newAvatar = avatar || user.avatar;
+
+  let newAvatar = avatar || user.avatar;
+  if (newAvatar && newAvatar.startsWith('data:image/')) {
+    try {
+      const up = await cloudinary.uploader.upload(newAvatar, { folder: 'nhantin/avatars' });
+      newAvatar = up.secure_url;
+    } catch (e) {
+      console.warn('Avatar Cloudinary upload error:', e.message);
+    }
+  }
+
+  let newCover = cover !== undefined ? cover : (user.cover || '');
+  if (newCover && newCover.startsWith('data:image/')) {
+    try {
+      const up = await cloudinary.uploader.upload(newCover, { folder: 'nhantin/covers' });
+      newCover = up.secure_url;
+    } catch (e) {
+      console.warn('Cover Cloudinary upload error:', e.message);
+    }
+  }
+
   const newGender = gender || user.gender || 'Nam';
   const newDob = dob || user.dob || '28 tháng 12, 2004';
-  const newCover = cover !== undefined ? cover : (user.cover || '');
   const newPhone = phone ? phone.trim() : user.phone;
 
   if (sqliteDb) {

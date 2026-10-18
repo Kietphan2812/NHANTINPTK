@@ -8,3 +8,11 @@ services:
     envVars:
       - key: NODE_VERSION
         value: 20
+      - key: CLOUDINARY_CLOUD_NAME
+        value: qfgja134
+      - key: CLOUDINARY_API_KEY
+        value: 883671741882845
+      - key: CLOUDINARY_API_SECRET
+        value: WR2xJMwT27mWJjfIjwoAqMbuF8M
+      - key: CLOUDINARY_URL
+        value: cloudinary://883671741882845:WR2xJMwT27mWJjfIjwoAqMbuF8M@qfgja134
