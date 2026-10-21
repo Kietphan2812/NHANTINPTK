@@ -425,30 +425,103 @@
     }
   }
 
-  // Request Notification Permission
-  async function requestNotificationPermission() {
-    if (!('Notification' in window)) return;
+  // Check and update Push Notification UI and permissions
+  async function checkPushNotificationStatus() {
+    const banner = document.getElementById('push-notif-banner');
+    const switchPush = document.getElementById('switch-settings-push');
+    const pushStatusText = document.getElementById('push-status-text');
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    const isStandalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+
+    if (!('Notification' in window)) {
+      if (switchPush) {
+        switchPush.checked = false;
+        switchPush.disabled = false;
+      }
+      if (pushStatusText) {
+        if (isIOS && !isStandalone) {
+          pushStatusText.innerHTML = '⚠️ <strong>iOS:</strong> Cần thêm vào Màn hình chính để nhận cuộc gọi';
+        } else if (isIOS && isStandalone) {
+          pushStatusText.innerHTML = '⚠️ <strong>iOS:</strong> Thiết bị cần nâng cấp iOS 16.4+ để nhận cuộc gọi';
+        } else {
+          pushStatusText.innerHTML = '⚠️ Trình duyệt này không hỗ trợ Web Push';
+        }
+      }
+      if (banner) {
+        if (isIOS && !isStandalone) {
+          const subEl = banner.querySelector('.push-notif-sub');
+          const btnEl = banner.querySelector('.btn-enable-push');
+          if (subEl) subEl.textContent = 'Trên iPhone: Bấm nút Chia sẻ (hình ô vuông có mũi tên lên ⎋) rồi chọn "Thêm vào MH chính" để nhận cuộc gọi!';
+          if (btnEl) btnEl.textContent = 'Xem hướng dẫn';
+          banner.style.display = 'flex';
+        } else {
+          banner.style.display = 'none';
+        }
+      }
+      return;
+    }
 
     if (Notification.permission === 'granted') {
-      const banner = document.getElementById('push-notif-banner');
       if (banner) banner.style.display = 'none';
-      const switchPush = document.getElementById('switch-settings-push');
-      if (switchPush) switchPush.checked = true;
+      if (switchPush) {
+        switchPush.checked = true;
+        switchPush.disabled = false;
+      }
+      if (pushStatusText) {
+        pushStatusText.innerHTML = '✅ <strong>Đã kích hoạt:</strong> Đổ chuông & mở app khi có người gọi tới';
+      }
       registerPushSubscription();
-    } else if (Notification.permission === 'default') {
-      const banner = document.getElementById('push-notif-banner');
+    } else if (Notification.permission === 'denied') {
+      if (switchPush) {
+        switchPush.checked = false;
+        switchPush.disabled = false;
+      }
+      if (pushStatusText) {
+        pushStatusText.innerHTML = '❌ <strong>Bị chặn:</strong> Vui lòng vào Cài đặt máy ➔ Cho phép thông báo';
+      }
+      if (banner) {
+        const subEl = banner.querySelector('.push-notif-sub');
+        const btnEl = banner.querySelector('.btn-enable-push');
+        if (subEl) subEl.textContent = 'Quyền thông báo đang bị tắt. Vào Cài đặt iPhone/Android ➔ Cho phép thông báo để nhận cuộc gọi.';
+        if (btnEl) btnEl.textContent = 'Cài đặt ngay';
+        banner.style.display = 'flex';
+      }
+    } else {
+      // 'default' (chưa hỏi)
+      if (switchPush) {
+        switchPush.checked = false;
+        switchPush.disabled = false;
+      }
+      if (pushStatusText) {
+        pushStatusText.innerHTML = '🔔 <strong>Chưa kích hoạt:</strong> Bấm nút bên cạnh để nhận cuộc gọi khi thoát app';
+      }
       if (banner && !sessionStorage.getItem('push_banner_dismissed')) {
         banner.style.display = 'flex';
       }
-      const switchPush = document.getElementById('switch-settings-push');
-      if (switchPush) switchPush.checked = false;
     }
   }
 
+  // Alias for backward compatibility
+  const requestNotificationPermission = checkPushNotificationStatus;
+
   // Explicitly prompt user for push notifications (e.g. from banner or settings switch)
   async function promptEnableNotifications() {
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    const isStandalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+
     if (!('Notification' in window)) {
-      alert('Trình duyệt hoặc thiết bị này không hỗ trợ Thông báo đẩy Web.');
+      if (isIOS && !isStandalone) {
+        alert('📱 Hướng dẫn iPhone:\n1. Bấm nút Chia sẻ (hình ô vuông có mũi tên lên ⎋ ở dưới màn hình Safari)\n2. Cuộn xuống chọn "Thêm vào MH chính" (Add to Home Screen)\n3. Mở app ZaloChat từ Màn hình chính để kích hoạt nhận cuộc gọi khi thoát app.');
+      } else if (isIOS && isStandalone) {
+        alert('⚠️ Thiết bị iPhone này cần nâng cấp lên iOS 16.4 trở lên để hỗ trợ nhận cuộc gọi khi thoát app.\nVui lòng vào Cài đặt iPhone ➔ Cài đặt chung ➔ Cập nhật phần mềm.');
+      } else {
+        alert('Trình duyệt hoặc thiết bị này không hỗ trợ Thông báo đẩy Web.');
+      }
+      return;
+    }
+
+    if (Notification.permission === 'denied') {
+      alert('⚠️ Bạn đã từ chối cấp quyền thông báo trước đó.\nĐể nhận cuộc gọi khi thoát app:\n1. Mở Cài đặt của điện thoại\n2. Chọn Thông báo ➔ Tìm ZaloChat (hoặc Safari)\n3. Gạt bật "Cho phép thông báo".');
       return;
     }
 
@@ -461,8 +534,10 @@
         if (switchPush) switchPush.checked = true;
         await registerPushSubscription();
         showToast('🎉 Đã bật chuông cuộc gọi & thông báo khi thoát app thành công!');
+        checkPushNotificationStatus();
       } else {
         showToast('⚠️ Bạn đã từ chối cấp quyền thông báo.');
+        checkPushNotificationStatus();
       }
     } catch (e) {
       console.warn('Notification permission error:', e);
@@ -626,17 +701,6 @@
     }
   }
 
-  function requestNotificationPermission() {
-    if ('Notification' in window && Notification.permission === 'default') {
-      try {
-        Notification.requestPermission().then(perm => {
-          if (perm === 'granted') {
-            console.log('ZaloChat notifications enabled');
-          }
-        }).catch(() => {});
-      } catch (e) {}
-    }
-  }
 
   function showDesktopNotification(msg) {
     if (!('Notification' in window)) return;
@@ -966,6 +1030,7 @@
     }
 
     setupEventListeners();
+    checkPushNotificationStatus();
   }
 
   function showAuthModal(tab = 'login') {
@@ -2019,11 +2084,37 @@
       });
     }
 
-    // Push Notification Banner & Settings Switch
+    // Push Notification Banner & Settings Switch & Mobile Settings Buttons
     const btnEnablePush = document.getElementById('btn-enable-push');
     const btnDismissPush = document.getElementById('btn-dismiss-push');
     const pushNotifBanner = document.getElementById('push-notif-banner');
     const switchSettingsPush = document.getElementById('switch-settings-push');
+    const btnSettingsRequestPush = document.getElementById('btn-settings-request-push');
+    const btnTopSettings = document.getElementById('btn-top-settings');
+    const btnMobileSettings = document.getElementById('btn-mobile-settings');
+    const btnProfileSettings = document.getElementById('btn-profile-settings');
+
+    if (btnTopSettings) {
+      btnTopSettings.addEventListener('click', () => {
+        openSettingsModal('notifications');
+      });
+    }
+    if (btnMobileSettings) {
+      btnMobileSettings.addEventListener('click', () => {
+        openSettingsModal('notifications');
+      });
+    }
+    if (btnProfileSettings) {
+      btnProfileSettings.addEventListener('click', () => {
+        closeProfileModal();
+        openSettingsModal('notifications');
+      });
+    }
+    if (btnSettingsRequestPush) {
+      btnSettingsRequestPush.addEventListener('click', () => {
+        promptEnableNotifications();
+      });
+    }
 
     if (btnEnablePush) {
       btnEnablePush.addEventListener('click', () => {
@@ -4687,6 +4778,8 @@
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('/sw.js').then((reg) => {
         console.log('ZaloChat SW registered:', reg.scope);
+        // Force SW to check for updates on each page load
+        reg.update();
       }).catch((err) => {
         console.warn('ZaloChat SW registration failed:', err);
       });

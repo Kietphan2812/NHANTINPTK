@@ -1,5 +1,5 @@
 // ZaloChat Service Worker with Full Web Push Support
-const CACHE_NAME = 'zalochat-v4';
+const CACHE_NAME = 'zalochat-v6';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -14,12 +14,12 @@ const ASSETS_TO_CACHE = [
 ];
 
 self.addEventListener('install', (event) => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(ASSETS_TO_CACHE).catch(() => {});
     })
   );
-  self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
@@ -30,15 +30,16 @@ self.addEventListener('activate', (event) => {
           if (k !== CACHE_NAME) return caches.delete(k);
         })
       );
-    })
+    }).then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET' || event.request.url.includes('/socket.io/') || event.request.url.includes('/api/')) {
     return;
   }
+
+  // Network-first for HTML, JS and CSS to ensure code changes apply immediately
   event.respondWith(
     fetch(event.request)
       .then((response) => {
