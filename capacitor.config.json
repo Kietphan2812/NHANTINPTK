@@ -1,0 +1,15 @@
+{
+  "appId": "com.nhantinptk.zalochat",
+  "appName": "ZaloChat",
+  "webDir": "public",
+  "bundledWebRuntime": false,
+  "server": {
+    "url": "https://nhantinptk.onrender.com",
+    "cleartext": true
+  },
+  "ios": {
+    "contentInset": "always",
+    "allowsLinkPreview": false,
+    "scrollEnabled": true
+  }
+}
