@@ -1656,6 +1656,33 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Helper to record missed call in database & sync real-time
+  function recordMissedCall(caller, targetUserId, isVideo) {
+    if (!caller || !targetUserId) return;
+    const missedMsg = {
+      id: `msg_${Date.now()}_missed_${Math.random().toString(36).substring(2, 7)}`,
+      senderId: caller.id,
+      senderName: caller.name,
+      senderAvatar: caller.avatar,
+      targetId: targetUserId,
+      isGroup: false,
+      text: isVideo ? 'Cuộc gọi video nhỡ' : 'Cuộc gọi thoại nhỡ',
+      imageUrl: null,
+      fileUrl: null,
+      fileName: null,
+      messageType: 'missed_call',
+      extraData: { isVideo: !!isVideo, callerId: caller.id, targetId: targetUserId },
+      replyTo: null,
+      reactions: {},
+      isPinned: false,
+      recalled: false,
+      timestamp: Date.now()
+    };
+    dbInsertMessage(missedMsg);
+    io.to(`user_${targetUserId}`).emit('message:new', { message: missedMsg });
+    io.to(`user_${caller.id}`).emit('message:new', { message: missedMsg });
+  }
+
   // WebRTC Calling Signaling with Web Push Dispatch
   socket.on('call:initiate', ({ targetUserId, isVideo, offer }) => {
     if (!currentUser || !targetUserId) return;
@@ -1667,7 +1694,11 @@ io.on('connection', (socket) => {
       clearTimeout(activePendingCalls.get(targetUserId).timeout);
     }
     const timeout = setTimeout(() => {
-      activePendingCalls.delete(targetUserId);
+      const pending = activePendingCalls.get(targetUserId);
+      if (pending) {
+        recordMissedCall(pending.caller, targetUserId, pending.isVideo);
+        activePendingCalls.delete(targetUserId);
+      }
     }, 45000); // 45 seconds call timeout
 
     activePendingCalls.set(targetUserId, {
@@ -1724,7 +1755,9 @@ io.on('connection', (socket) => {
   socket.on('call:hangup', ({ targetUserId }) => {
     if (!currentUser || !targetUserId) return;
     if (activePendingCalls.has(targetUserId)) {
-      clearTimeout(activePendingCalls.get(targetUserId).timeout);
+      const pending = activePendingCalls.get(targetUserId);
+      clearTimeout(pending.timeout);
+      recordMissedCall(pending.caller, targetUserId, pending.isVideo);
       activePendingCalls.delete(targetUserId);
     }
     io.to(`user_${targetUserId}`).emit('call:ended', { byUserId: currentUser.id });
@@ -1746,7 +1779,9 @@ io.on('connection', (socket) => {
   socket.on('call:reject', ({ targetUserId }) => {
     if (!currentUser || !targetUserId) return;
     if (activePendingCalls.has(currentUser.id)) {
-      clearTimeout(activePendingCalls.get(currentUser.id).timeout);
+      const pending = activePendingCalls.get(currentUser.id);
+      clearTimeout(pending.timeout);
+      recordMissedCall(pending.caller, currentUser.id, pending.isVideo);
       activePendingCalls.delete(currentUser.id);
     }
     io.to(`user_${targetUserId}`).emit('call:rejected', { byUserId: currentUser.id });

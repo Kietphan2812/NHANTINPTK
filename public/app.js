@@ -4390,6 +4390,21 @@
           <button class="contact-card-btn" data-contact-id="${cd.id}">Nhắn tin</button>
         </div>
       `;
+    } else if (!msg.recalled && msg.messageType === 'missed_call') {
+      const isVideo = msg.extraData && msg.extraData.isVideo;
+      const callerName = escapeHTML(msg.senderName || 'Người gọi');
+      richContentHtml = `
+        <div class="missed-call-card" style="display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.25); border-radius: 12px; min-width: 220px;">
+          <div style="width: 38px; height: 38px; border-radius: 50%; background: #ef4444; color: #fff; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/><line x1="23" y1="1" x2="1" y2="23"/></svg>
+          </div>
+          <div style="flex: 1; min-width: 0;">
+            <div style="font-weight: 700; font-size: 0.92rem; color: #ef4444;">${isVideo ? 'Cuộc gọi video nhỡ' : 'Cuộc gọi thoại nhỡ'}</div>
+            <div style="font-size: 0.78rem; color: var(--text-dim); margin-top: 2px;">${isOutgoing ? 'Bạn đã gọi' : callerName + ' đã gọi'}</div>
+          </div>
+          ${!isOutgoing ? `<button type="button" class="btn-missed-callback" data-is-video="${isVideo ? '1' : '0'}" style="padding: 6px 12px; font-size: 0.8rem; font-weight: 600; border-radius: 8px; border: none; background: #0068ff; color: #fff; cursor: pointer; flex-shrink: 0;">Gọi lại</button>` : ''}
+        </div>
+      `;
     }
 
     let mediaHtml = '';
@@ -4498,6 +4513,16 @@
             bio: targetUser.bio
           });
         }
+      });
+    }
+
+    // Missed call callback button handler
+    const missedCallCallbackBtn = row.querySelector('.btn-missed-callback');
+    if (missedCallCallbackBtn) {
+      missedCallCallbackBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isVideo = missedCallCallbackBtn.dataset.isVideo === '1';
+        initiateWebRTCCall(isVideo);
       });
     }
 
