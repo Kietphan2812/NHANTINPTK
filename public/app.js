@@ -261,6 +261,7 @@
   let callSeconds = 0;
   let incomingCallData = null;
   let ringtoneInterval = null;
+  let pendingAnswerOnOffer = false;
 
   const rtcConfig = {
     iceServers: [
@@ -367,6 +368,160 @@
       osc2.start(now + 0.05);
       osc1.stop(now + 0.6);
       osc2.stop(now + 0.6);
+    } catch (e) {}
+  }
+
+  // Base64 URL to Uint8Array converter for VAPID key
+  function urlB64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding)
+      .replace(/\-/g, '+')
+      .replace(/_/g, '/');
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) {
+      outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+  }
+
+  // Register Web Push with Service Worker
+  async function registerPushSubscription() {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      console.warn('Web Push is not supported by this browser.');
+      return;
+    }
+    if (!('Notification' in window) || Notification.permission !== 'granted') {
+      return;
+    }
+
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      let subscription = await reg.pushManager.getSubscription();
+
+      if (!subscription) {
+        const vapidRes = await fetch('/api/push/vapid-key');
+        const { publicKey } = await vapidRes.json();
+        const applicationServerKey = urlB64ToUint8Array(publicKey);
+        subscription = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey
+        });
+      }
+
+      if (subscription && currentUser) {
+        await fetch('/api/push/subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: currentUser.id,
+            subscription
+          })
+        });
+        console.log('✅ Web Push registered for user:', currentUser.name);
+      }
+    } catch (err) {
+      console.warn('Web Push registration error:', err);
+    }
+  }
+
+  // Request Notification Permission
+  async function requestNotificationPermission() {
+    if (!('Notification' in window)) return;
+
+    if (Notification.permission === 'granted') {
+      const banner = document.getElementById('push-notif-banner');
+      if (banner) banner.style.display = 'none';
+      const switchPush = document.getElementById('switch-settings-push');
+      if (switchPush) switchPush.checked = true;
+      registerPushSubscription();
+    } else if (Notification.permission === 'default') {
+      const banner = document.getElementById('push-notif-banner');
+      if (banner && !sessionStorage.getItem('push_banner_dismissed')) {
+        banner.style.display = 'flex';
+      }
+      const switchPush = document.getElementById('switch-settings-push');
+      if (switchPush) switchPush.checked = false;
+    }
+  }
+
+  // Explicitly prompt user for push notifications (e.g. from banner or settings switch)
+  async function promptEnableNotifications() {
+    if (!('Notification' in window)) {
+      alert('Trình duyệt hoặc thiết bị này không hỗ trợ Thông báo đẩy Web.');
+      return;
+    }
+
+    try {
+      const perm = await Notification.requestPermission();
+      if (perm === 'granted') {
+        const banner = document.getElementById('push-notif-banner');
+        if (banner) banner.style.display = 'none';
+        const switchPush = document.getElementById('switch-settings-push');
+        if (switchPush) switchPush.checked = true;
+        await registerPushSubscription();
+        showToast('🎉 Đã bật chuông cuộc gọi & thông báo khi thoát app thành công!');
+      } else {
+        showToast('⚠️ Bạn đã từ chối cấp quyền thông báo.');
+      }
+    } catch (e) {
+      console.warn('Notification permission error:', e);
+    }
+  }
+
+  // Show desktop notification when app is open in browser tab
+  function showDesktopNotification(msg) {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    if (document.visibilityState === 'visible' && currentTarget && (
+      (msg.isGroup && currentTarget.id === msg.targetId) ||
+      (!msg.isGroup && currentTarget.id === msg.senderId)
+    )) {
+      return;
+    }
+
+    const partnerId = msg.isGroup ? msg.targetId : msg.senderId;
+    const settings = getUserSettings();
+    if (settings.mutedConversations.includes(partnerId)) return;
+
+    const title = msg.isGroup ? `${msg.senderName} (Nhóm)` : msg.senderName;
+    const text = msg.recalled ? 'Tin nhắn đã được thu hồi' : (
+      msg.messageType === 'reminder' ? `[Nhắc hẹn] ${msg.extraData?.title || msg.text || ''}` :
+      msg.messageType === 'contact_card' ? `[Danh thiếp] ${msg.extraData?.name || ''}` :
+      (msg.text || (msg.imageUrl ? '[Hình ảnh]' : (msg.fileUrl ? '[Tập tin]' : 'Tin nhắn mới')))
+    );
+
+    try {
+      const notif = new Notification(title, {
+        body: text,
+        icon: msg.senderAvatar || '/images/icon-192.png',
+        tag: `msg_${partnerId}`
+      });
+      notif.onclick = () => {
+        window.focus();
+        const targetUser = allUsers.find(u => u.id === partnerId);
+        const targetRoom = allRooms.find(r => r.id === partnerId);
+        if (targetRoom) {
+          selectTarget({
+            id: targetRoom.id,
+            name: targetRoom.name,
+            avatar: targetRoom.avatar,
+            isGroup: true,
+            status: 'Nhóm trò chuyện',
+            bio: targetRoom.description
+          });
+        } else if (targetUser) {
+          selectTarget({
+            id: targetUser.id,
+            name: targetUser.name,
+            avatar: targetUser.avatar,
+            phone: targetUser.phone,
+            tag: targetUser.tag,
+            isGroup: false,
+            status: targetUser.status === 'online' ? 'Đang hoạt động' : 'Ngoại tuyến',
+            bio: targetUser.bio
+          });
+        }
+      };
     } catch (e) {}
   }
 
@@ -760,6 +915,32 @@
     initTheme();
     initSound();
     renderEmojiGrid('faces');
+
+    // Check URL parameters for direct incoming call launch from Push Notification
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('call') === 'incoming') {
+      const callerId = urlParams.get('callerId');
+      const callerName = decodeURIComponent(urlParams.get('callerName') || 'Người gọi');
+      const callerAvatar = decodeURIComponent(urlParams.get('callerAvatar') || '/images/icon-192.png');
+      const isVideo = urlParams.get('isVideo') === '1';
+
+      incomingCallData = {
+        caller: { id: callerId, name: callerName, avatar: callerAvatar },
+        isVideo: isVideo,
+        offer: null
+      };
+
+      incomingCallAvatar.src = callerAvatar;
+      incomingCallName.textContent = callerName;
+      incomingCallType.textContent = isVideo ? 'Cuộc gọi video đến...' : 'Cuộc gọi thoại đến...';
+      incomingCallModal.style.display = 'flex';
+
+      playRingTone();
+      clearInterval(ringtoneInterval);
+      ringtoneInterval = setInterval(playRingTone, 2500);
+
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
 
     try {
       const res = await fetch('/api/bootstrap');
@@ -1838,6 +2019,35 @@
       });
     }
 
+    // Push Notification Banner & Settings Switch
+    const btnEnablePush = document.getElementById('btn-enable-push');
+    const btnDismissPush = document.getElementById('btn-dismiss-push');
+    const pushNotifBanner = document.getElementById('push-notif-banner');
+    const switchSettingsPush = document.getElementById('switch-settings-push');
+
+    if (btnEnablePush) {
+      btnEnablePush.addEventListener('click', () => {
+        promptEnableNotifications();
+      });
+    }
+    if (btnDismissPush) {
+      btnDismissPush.addEventListener('click', () => {
+        if (pushNotifBanner) pushNotifBanner.style.display = 'none';
+        sessionStorage.setItem('push_banner_dismissed', '1');
+      });
+    }
+    if (switchSettingsPush) {
+      switchSettingsPush.checked = ('Notification' in window) && Notification.permission === 'granted';
+      switchSettingsPush.addEventListener('change', async () => {
+        if (switchSettingsPush.checked) {
+          await promptEnableNotifications();
+          switchSettingsPush.checked = ('Notification' in window) && Notification.permission === 'granted';
+        } else {
+          showToast('Đã tắt thông báo đẩy khi thoát app');
+        }
+      });
+    }
+
     // Contacts Full Page Filter Listeners (Image 2)
     const contactsSearchInput = document.getElementById('contacts-search-input');
     const contactsSortSelect = document.getElementById('contacts-sort-select');
@@ -2731,6 +2941,11 @@
       renderSidebarContent();
       requestNotificationPermission();
 
+      // If app was opened by clicking a push call notification, check pending call!
+      if (incomingCallData) {
+        socket.emit('call:check_pending');
+      }
+
       // Automatically open Cloud cua toi on login if no chat is active
       if (!currentTarget) {
         if (typeof openCloudChat === 'function') {
@@ -3044,9 +3259,17 @@
       incomingCallAvatar.src = caller.avatar;
       incomingCallName.textContent = caller.name;
       incomingCallType.textContent = isVideo ? 'Cuộc gọi video đến...' : 'Cuộc gọi thoại đến...';
+
+      if (pendingAnswerOnOffer) {
+        pendingAnswerOnOffer = false;
+        answerIncomingCall();
+        return;
+      }
+
       incomingCallModal.style.display = 'flex';
 
       playRingTone();
+      clearInterval(ringtoneInterval);
       ringtoneInterval = setInterval(playRingTone, 2500);
     });
 
@@ -3154,6 +3377,18 @@
     clearInterval(ringtoneInterval);
     incomingCallModal.style.display = 'none';
 
+    if (!incomingCallData.offer) {
+      callAvatar.src = incomingCallData.caller.avatar;
+      callUserName.textContent = incomingCallData.caller.name;
+      callStatusLabel.textContent = 'Đang đồng bộ cuộc gọi...';
+      callModal.style.display = 'flex';
+      pendingAnswerOnOffer = true;
+      if (socket && socket.connected) {
+        socket.emit('call:check_pending');
+      }
+      return;
+    }
+
     const { caller, isVideo, offer } = incomingCallData;
     activeCallPartner = caller;
     isCallVideo = isVideo;
@@ -3221,7 +3456,8 @@
   function rejectIncomingCall() {
     clearInterval(ringtoneInterval);
     incomingCallModal.style.display = 'none';
-    if (incomingCallData && socket) {
+    pendingAnswerOnOffer = false;
+    if (incomingCallData && socket && incomingCallData.caller) {
       socket.emit('call:reject', { targetUserId: incomingCallData.caller.id });
     }
     incomingCallData = null;
@@ -3230,6 +3466,7 @@
   function hangupWebRTCCall(notifyPeer = true) {
     clearInterval(ringtoneInterval);
     stopCallTimer();
+    pendingAnswerOnOffer = false;
 
     if (notifyPeer && socket && activeCallPartner) {
       socket.emit('call:hangup', { targetUserId: activeCallPartner.id });

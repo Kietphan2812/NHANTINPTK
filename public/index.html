@@ -52,6 +52,23 @@
   <!-- App Root Container -->
   <div id="app" class="app-layout">
     
+    <!-- Push Notification Call Alert Floating Banner -->
+    <div id="push-notif-banner" class="push-notif-banner" style="display: none;">
+      <div class="push-notif-banner-content">
+        <div class="push-notif-icon">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+        </div>
+        <div class="push-notif-text">
+          <div class="push-notif-title">Nhận cuộc gọi khi thoát ứng dụng</div>
+          <div class="push-notif-sub">Bật thông báo để điện thoại rung chuông và mở ngay màn hình cuộc gọi khi có người gọi tới.</div>
+        </div>
+      </div>
+      <div class="push-notif-actions">
+        <button id="btn-enable-push" class="btn-enable-push">Bật chuông ngay</button>
+        <button id="btn-dismiss-push" class="btn-dismiss-push" title="Để sau">✕</button>
+      </div>
+    </div>
+
     <!-- COLUMN 1: ZALO ROYAL BLUE RAIL -->
     <aside class="zalo-rail" id="zalo-rail">
       <div class="rail-top">
@@ -1050,7 +1067,17 @@
           <!-- TAB 5: THÔNG BÁO -->
           <div class="settings-tab-pane" id="pane-set-notifications" style="display: none;">
             <div class="settings-section-card">
-              <h4 class="settings-group-title">Thông báo</h4>
+              <h4 class="settings-group-title">Thông báo Hệ Thống & Thoát App</h4>
+              <div class="settings-row-between mb-16">
+                <div>
+                  <div class="font-bold">Đổ chuông cuộc gọi khi thoát app</div>
+                  <div class="text-sm text-muted">Nhận cuộc gọi đến & rung chuông ngay cả khi đã thoát app hoặc khóa màn hình (Web Push)</div>
+                </div>
+                <label class="zalo-switch">
+                  <input type="checkbox" id="switch-settings-push">
+                  <span class="slider round"></span>
+                </label>
+              </div>
               <div class="settings-row-between mb-16">
                 <div>
                   <div class="font-bold">Âm thanh thông báo</div>
@@ -1307,6 +1334,8 @@
         </button>
       </div>
     </div>
+  </div>
+
   <!-- MODAL: REPORT CONVERSATION (Báo xấu) -->
   <div class="modal-overlay" id="report-modal" style="display: none;">
     <div class="modal-card">

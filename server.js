@@ -19,6 +19,15 @@ cloudinary.config({
 });
 console.log('☁️ Cloudinary cloud storage configured (cloud_name: qfgja134)');
 
+// Web Push Notifications Integration (VAPID)
+const webpush = require('web-push');
+const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || 'BMUxQt4HZFBirGyanYxqMRnYxgAJ6PtYu56kpn0h88uMJyGvP4MU8SuBVggDEhO_pjOjNF5yuQrT9HAaglARQ-Q';
+const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || 'K5HajQSIUATYY6qelrETWfOxE0GxBJZJTW36gutnp3I';
+const VAPID_SUBJECT = process.env.VAPID_SUBJECT || 'mailto:admin@zalochat.local';
+
+webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+console.log('🔔 Web Push Notifications initialized with permanent VAPID keys');
+
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -157,6 +166,13 @@ try {
       sender_id TEXT NOT NULL,
       receiver_id TEXT NOT NULL,
       created_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS push_subscriptions (
+      endpoint TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      subscription TEXT NOT NULL,
+      updated_at INTEGER NOT NULL
     );
   `);
 
@@ -307,6 +323,13 @@ async function initNeonCloudDatabase() {
         created_at BIGINT NOT NULL,
         UNIQUE(sender_id, receiver_id)
       );
+
+      CREATE TABLE IF NOT EXISTS push_subscriptions (
+        endpoint TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        subscription TEXT NOT NULL,
+        updated_at BIGINT NOT NULL
+      );
     `);
 
     // Load and sync users from Neon Cloud PostgreSQL
@@ -441,6 +464,22 @@ async function initNeonCloudDatabase() {
               INSERT OR REPLACE INTO friend_requests (id, sender_id, receiver_id, created_at)
               VALUES (?, ?, ?, ?)
             `).run(fr.id, fr.sender_id, fr.receiver_id, Number(fr.created_at));
+          } catch (e) {}
+        }
+      });
+    }
+
+    // 5. Load and sync push subscriptions from Neon Cloud PostgreSQL
+    const pgSubs = await client.query('SELECT * FROM push_subscriptions');
+    if (pgSubs.rows && pgSubs.rows.length > 0) {
+      console.log(`Synced ${pgSubs.rows.length} push subscriptions from Neon Cloud PostgreSQL`);
+      pgSubs.rows.forEach(ps => {
+        if (sqliteDb) {
+          try {
+            sqliteDb.prepare(`
+              INSERT OR REPLACE INTO push_subscriptions (endpoint, user_id, subscription, updated_at)
+              VALUES (?, ?, ?, ?)
+            `).run(ps.endpoint, ps.user_id, ps.subscription, Number(ps.updated_at));
           } catch (e) {}
         }
       });
@@ -886,6 +925,82 @@ function dbClearMessages(targetId, currentUserId, isGroup) {
 }
 
 
+// Push Subscriptions storage & Web Push Dispatcher
+function dbSavePushSubscription(userId, subscription) {
+  if (!userId || !subscription || !subscription.endpoint) return;
+  const endpoint = subscription.endpoint;
+  const subStr = JSON.stringify(subscription);
+  const now = Date.now();
+
+  if (sqliteDb) {
+    try {
+      sqliteDb.prepare(`
+        INSERT OR REPLACE INTO push_subscriptions (endpoint, user_id, subscription, updated_at)
+        VALUES (?, ?, ?, ?)
+      `).run(endpoint, userId, subStr, now);
+    } catch (e) {
+      console.warn('SQLite push_subscription save error:', e.message);
+    }
+  }
+
+  pgRun(`
+    INSERT INTO push_subscriptions (endpoint, user_id, subscription, updated_at)
+    VALUES ($1, $2, $3, $4)
+    ON CONFLICT (endpoint) DO UPDATE SET
+      user_id = EXCLUDED.user_id,
+      subscription = EXCLUDED.subscription,
+      updated_at = EXCLUDED.updated_at
+  `, [endpoint, userId, subStr, now]);
+}
+
+function dbGetPushSubscriptionsForUser(userId) {
+  if (sqliteDb) {
+    try {
+      const rows = sqliteDb.prepare('SELECT subscription FROM push_subscriptions WHERE user_id = ?').all(userId);
+      return rows.map(r => {
+        try { return JSON.parse(r.subscription); } catch (e) { return null; }
+      }).filter(Boolean);
+    } catch (e) {
+      console.warn('SQLite push_subscriptions get error:', e.message);
+    }
+  }
+  return [];
+}
+
+function dbDeletePushSubscription(endpoint) {
+  if (!endpoint) return;
+  if (sqliteDb) {
+    try {
+      sqliteDb.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?').run(endpoint);
+    } catch (e) {}
+  }
+  pgRun('DELETE FROM push_subscriptions WHERE endpoint = $1', [endpoint]);
+}
+
+async function sendPushToUser(userId, payload) {
+  const subs = dbGetPushSubscriptionsForUser(userId);
+  if (!subs || subs.length === 0) return;
+
+  const payloadStr = typeof payload === 'string' ? payload : JSON.stringify(payload);
+
+  for (const sub of subs) {
+    try {
+      await webpush.sendNotification(sub, payloadStr, {
+        TTL: 60,
+        urgency: 'high'
+      });
+    } catch (err) {
+      console.warn(`[WebPush] Notification error for user ${userId}:`, err.statusCode || err.message);
+      if (err.statusCode === 404 || err.statusCode === 410) {
+        dbDeletePushSubscription(sub.endpoint);
+      }
+    }
+  }
+}
+
+// Map of active calls: targetUserId -> { caller, callerSocketId, isVideo, offer, timestamp, timeout }
+const activePendingCalls = new Map();
+
 // Track online sockets: userId -> Set of socket.ids
 const userSocketsMap = new Map();
 
@@ -1198,6 +1313,28 @@ app.post('/api/users/profile', async (req, res) => {
   res.json({ success: true, user: safeUser(updatedUser, isUserOnline(id)) });
 });
 
+// Push Notification REST Endpoints
+app.get('/api/push/vapid-key', (req, res) => {
+  res.json({ publicKey: VAPID_PUBLIC_KEY });
+});
+
+app.post('/api/push/subscribe', (req, res) => {
+  const { userId, subscription } = req.body;
+  if (!userId || !subscription || !subscription.endpoint) {
+    return res.status(400).json({ error: 'Missing userId or subscription' });
+  }
+  dbSavePushSubscription(userId, subscription);
+  res.json({ success: true, message: 'Đăng ký nhận thông báo đẩy thành công' });
+});
+
+app.post('/api/push/unsubscribe', (req, res) => {
+  const { endpoint } = req.body;
+  if (endpoint) {
+    dbDeletePushSubscription(endpoint);
+  }
+  res.json({ success: true });
+});
+
 // ===================================================================
 // SOCKET.IO REAL-TIME LOGIC
 // ===================================================================
@@ -1245,6 +1382,37 @@ io.on('connection', (socket) => {
       status: 'online',
       lastSeen: new Date().toISOString()
     });
+
+    // Check if there is an active pending call waiting for this user!
+    if (activePendingCalls.has(user.id)) {
+      const pendingCall = activePendingCalls.get(user.id);
+      if (Date.now() - pendingCall.timestamp < 45000) {
+        socket.emit('call:incoming', {
+          caller: pendingCall.caller,
+          isVideo: pendingCall.isVideo,
+          offer: pendingCall.offer
+        });
+      } else {
+        activePendingCalls.delete(user.id);
+      }
+    }
+  });
+
+  // Client requests checking pending calls upon opening from push notification
+  socket.on('call:check_pending', () => {
+    if (!currentUser) return;
+    if (activePendingCalls.has(currentUser.id)) {
+      const pendingCall = activePendingCalls.get(currentUser.id);
+      if (Date.now() - pendingCall.timestamp < 45000) {
+        socket.emit('call:incoming', {
+          caller: pendingCall.caller,
+          isVideo: pendingCall.isVideo,
+          offer: pendingCall.offer
+        });
+      } else {
+        activePendingCalls.delete(currentUser.id);
+      }
+    }
   });
 
   // Send Friend Request (Image 2 - Lời mời kết bạn)
@@ -1488,18 +1656,60 @@ io.on('connection', (socket) => {
     }
   });
 
-  // WebRTC Calling Signaling
+  // WebRTC Calling Signaling with Web Push Dispatch
   socket.on('call:initiate', ({ targetUserId, isVideo, offer }) => {
     if (!currentUser || !targetUserId) return;
+
+    const callerSafe = safeUser(currentUser, true);
+
+    // Save pending call so if receiver opens app from push notification, they get the call immediately!
+    if (activePendingCalls.has(targetUserId)) {
+      clearTimeout(activePendingCalls.get(targetUserId).timeout);
+    }
+    const timeout = setTimeout(() => {
+      activePendingCalls.delete(targetUserId);
+    }, 45000); // 45 seconds call timeout
+
+    activePendingCalls.set(targetUserId, {
+      caller: callerSafe,
+      callerSocketId: socket.id,
+      isVideo: !!isVideo,
+      offer,
+      timestamp: Date.now(),
+      timeout
+    });
+
+    // 1. Live socket event (if receiver already has app open)
     io.to(`user_${targetUserId}`).emit('call:incoming', {
-      caller: safeUser(currentUser, true),
+      caller: callerSafe,
       isVideo: !!isVideo,
       offer
+    });
+
+    // 2. Web Push Notification - wakes phone screen, vibrates & shows call prompt!
+    sendPushToUser(targetUserId, {
+      title: isVideo ? `📹 Cuộc gọi video từ ${currentUser.name}` : `📞 Cuộc gọi thoại từ ${currentUser.name}`,
+      body: 'Nhấn vào đây để mở ZaloChat và trả lời cuộc gọi ngay',
+      icon: currentUser.avatar || '/images/icon-192.png',
+      tag: `call_${currentUser.id}`,
+      requireInteraction: true,
+      data: {
+        type: 'incoming_call',
+        callerId: currentUser.id,
+        callerName: currentUser.name,
+        callerAvatar: currentUser.avatar || '',
+        isVideo: !!isVideo,
+        url: `/?call=incoming&callerId=${encodeURIComponent(currentUser.id)}&callerName=${encodeURIComponent(currentUser.name)}&callerAvatar=${encodeURIComponent(currentUser.avatar || '')}&isVideo=${isVideo ? '1' : '0'}`
+      }
     });
   });
 
   socket.on('call:answer', ({ targetUserId, answer }) => {
     if (!currentUser || !targetUserId) return;
+    if (activePendingCalls.has(currentUser.id)) {
+      clearTimeout(activePendingCalls.get(currentUser.id).timeout);
+      activePendingCalls.delete(currentUser.id);
+    }
     io.to(`user_${targetUserId}`).emit('call:answered', {
       responder: safeUser(currentUser, true),
       answer
@@ -1513,11 +1723,32 @@ io.on('connection', (socket) => {
 
   socket.on('call:hangup', ({ targetUserId }) => {
     if (!currentUser || !targetUserId) return;
+    if (activePendingCalls.has(targetUserId)) {
+      clearTimeout(activePendingCalls.get(targetUserId).timeout);
+      activePendingCalls.delete(targetUserId);
+    }
     io.to(`user_${targetUserId}`).emit('call:ended', { byUserId: currentUser.id });
+
+    // Send missed call update to replace incoming call notification
+    sendPushToUser(targetUserId, {
+      title: 'Cuộc gọi nhỡ',
+      body: `Bạn có 1 cuộc gọi nhỡ từ ${currentUser.name}`,
+      icon: currentUser.avatar || '/images/icon-192.png',
+      tag: `call_${currentUser.id}`,
+      requireInteraction: false,
+      data: {
+        type: 'missed_call',
+        url: `/?chat=${currentUser.id}&isGroup=0`
+      }
+    });
   });
 
   socket.on('call:reject', ({ targetUserId }) => {
     if (!currentUser || !targetUserId) return;
+    if (activePendingCalls.has(currentUser.id)) {
+      clearTimeout(activePendingCalls.get(currentUser.id).timeout);
+      activePendingCalls.delete(currentUser.id);
+    }
     io.to(`user_${targetUserId}`).emit('call:rejected', { byUserId: currentUser.id });
   });
 
@@ -1571,6 +1802,42 @@ io.on('connection', (socket) => {
     } else {
       io.to(`user_${msgData.targetId}`).emit('message:new', newMessage);
       io.to(`user_${currentUser.id}`).emit('message:new', newMessage);
+    }
+
+    // Web Push Notification for messages (when recipient is not active in app)
+    if (!isSelfChat) {
+      const summaryText = (newMessage.text || (newMessage.imageUrl ? '[Hình ảnh]' : (newMessage.fileUrl ? '[Tập tin]' : 'Tin nhắn mới'))).substring(0, 100);
+      if (msgData.isGroup) {
+        const room = dbGetAllRooms().find(r => r.id === msgData.targetId);
+        const members = room && Array.isArray(room.members) ? room.members : [];
+        members.forEach(memId => {
+          if (memId !== currentUser.id && !isUserOnline(memId)) {
+            sendPushToUser(memId, {
+              title: `${currentUser.name} (${room ? room.name : 'Nhóm'})`,
+              body: summaryText,
+              icon: currentUser.avatar || '/images/icon-192.png',
+              tag: `room_${msgData.targetId}`,
+              data: {
+                type: 'new_message',
+                url: `/?chat=${msgData.targetId}&isGroup=1`
+              }
+            });
+          }
+        });
+      } else {
+        if (!isUserOnline(msgData.targetId)) {
+          sendPushToUser(msgData.targetId, {
+            title: currentUser.name,
+            body: summaryText,
+            icon: currentUser.avatar || '/images/icon-192.png',
+            tag: `user_${currentUser.id}`,
+            data: {
+              type: 'new_message',
+              url: `/?chat=${currentUser.id}&isGroup=0`
+            }
+          });
+        }
+      }
     }
   });
 
